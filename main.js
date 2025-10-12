@@ -261,6 +261,7 @@ const embedGate = function(gate, qubitMap){
             nonCriticalMask |= 1 << (qubitMap.length-i-1);
         }
     }
+    //console.log(nonCriticalMask, qubitMap);
     //console.log(gate);
     const res = [];
     for(let i = 0; i < dim; i++){
@@ -276,9 +277,10 @@ const embedGate = function(gate, qubitMap){
             let rowIndex = 0;
             let colIndex = 0;
             for(let k = 0; k < reverseMap.length; k++){
-                rowIndex |= (j>>>(qubitMap.length-reverseMap[k]-1)&1)<<k;
-                colIndex |= (i>>>(qubitMap.length-reverseMap[k]-1)&1)<<k;
+                rowIndex |= (j>>>(qubitMap.length-reverseMap[k]-1)&1)<<(reverseMap.length-k-1);
+                colIndex |= (i>>>(qubitMap.length-reverseMap[k]-1)&1)<<(reverseMap.length-k-1);
             }
+            //console.log(colIndex, rowIndex, qubitMap);
             row.push(gate[colIndex][rowIndex]);
         }
     }
@@ -298,46 +300,44 @@ const embedGate = function(gate, qubitMap){
 //     [1,0,-1]
 // ));
 
-printMatrix(mul_mats(
-        embedGate(
-            gates.CNOT,
-            [1,0]
-        ),
-        embedGate(
-            gates.H,
-            [0,-1]
-        ),
-        embedGate(
-            gates.X,
-            [-1,0]
-        ),
-// embedGate(
-//     gates.CNOT,
-//     [1,0]
-// ),
-// embedGate(
-//     gates.H,
-//     [0,-1]
-// ),
-));
+const compose_circuit = function(...args){
+    // Because gates are performed like this
+    // GATE|Ψ>
+    // serially applied gates will be in the following form
+    // (GATE_N ... (GATE_2(GATE_1|Ψ>))...)
+    // Therefore, the gate vectors need to be multiplied backwards
+    return mul_mats(...args.reverse());
+}
+
+const circuit = compose_circuit(
+    embedGate(
+        gates.H,
+        [0,-1]
+    ),
+    gates.CNOT,
+    embedGate(
+        gates.X,
+        [-1,0]
+    ),
+)
+
+printMatrix(circuit);
 
 printVector(
     mul_matvec(
-    mul_mats(
-        // embedGate(
-        //     gates.X,
-        //     [-1,0]
-        // ),
-        embedGate(
-            gates.CNOT,
-            [1,0]
-        ),
-        embedGate(
-            gates.H,
-            [0,-1]
-        ),
-        //gates.CNOT,
-    ),
-    Complex.vector(1,0,0,0),
+        circuit,
+        Complex.vector(1,0,0,0),
     )
 );
+
+// printVector(
+//     mul_matvec(
+//     gates.CNOT,
+//     mul_matvec(
+//         embedGate(
+//             gates.H,
+//             [0,-1]
+//         ),
+//         Complex.vector(1,0,0,0),
+//     ))
+// );
