@@ -257,25 +257,35 @@ const gates = {
     ),
 }
 
-
 const embedGate = function(gate, qubitMap){
     const dim = 2**qubitMap.length;
     const reverseMap = [];
+    let controlMask = 0;
+    let controlSignMask = 0;
     for(let i = 0; i < qubitMap.length; i++){
-        if(qubitMap[i] === -1)continue;
-        reverseMap[qubitMap[i]] = i;
+        if(qubitMap[i] >= 0){
+            reverseMap[qubitMap[i]] = i;
+        }else if(qubitMap[i] === -2){
+            controlMask |= 1 << (qubitMap.length - i - 1);
+            controlSignMask |= 1 << (qubitMap.length - i - 1);
+        }else if(qubitMap[i] === -3){
+            controlMask |= 1 << (qubitMap.length - i - 1);
+        }
     }
+    //-2 => control
+    //-3 => negative controlx
 
     // if non critical index is different
     // we simply ignore the value from the matrix
     let nonCriticalMask = 0;
     for(let i = 0; i < qubitMap.length; i++){
-        if(qubitMap[i] === -1){
+        if(qubitMap[i] === -1){// empty
             // reverse bits because big endian, because math
             // |01> means first bit 0, and second bit 1
             nonCriticalMask |= 1 << (qubitMap.length-i-1);
         }
     }
+
     //console.log(nonCriticalMask, qubitMap);
     //console.log(gate);
     const res = [];
@@ -289,6 +299,20 @@ const embedGate = function(gate, qubitMap){
                 row.push(C(0,0));
                 continue;
             }
+            // if the control bits don't match, then it should be also 0
+            if((i&controlMask) !== (j&controlMask)){
+                row.push(C(0,0));
+                continue;
+            }
+            if((i&controlMask) !== controlSignMask){
+                if(i === j){
+                    row.push(C(1,0));
+                }else{
+                    row.push(C(0,0));
+                }
+                continue;
+            }
+            //console.log(controlMask, i,j, controlSignMask);
             let rowIndex = 0;
             let colIndex = 0;
             for(let k = 0; k < reverseMap.length; k++){
