@@ -314,8 +314,6 @@ const embedGate = function(gate, qubitMap){
         }
     }
 
-    //console.log(nonCriticalMask, qubitMap);
-    //console.log(gate);
     const res = [];
     for(let i = 0; i < dim; i++){
         const row = [];
@@ -340,32 +338,18 @@ const embedGate = function(gate, qubitMap){
                 }
                 continue;
             }
-            //console.log(controlMask, i,j, controlSignMask);
             let rowIndex = 0;
             let colIndex = 0;
             for(let k = 0; k < reverseMap.length; k++){
                 rowIndex |= (j>>>(qubitMap.length-reverseMap[k]-1)&1)<<(reverseMap.length-k-1);
                 colIndex |= (i>>>(qubitMap.length-reverseMap[k]-1)&1)<<(reverseMap.length-k-1);
             }
-            //console.log(colIndex, rowIndex, qubitMap);
             row.push(gate[colIndex][rowIndex]);
         }
     }
-    //console.log(res);
     return res;
 }
 
-// printMatrix(embedGate(
-//     gates.X,
-//     //[-1,-1,-1,0]
-//     [0,-1,-1,-1]
-// ));
-
-// printMatrix(embedGate(
-//     gates.CNOT,
-//     //[-1,-1,-1,0]
-//     [1,0,-1]
-// ));
 
 const compose_circuit = function(...args){
     // Because gates are performed like this
@@ -376,35 +360,139 @@ const compose_circuit = function(...args){
     return mul_mats(...args.reverse());
 }
 
-const circuit = compose_circuit(
-    embedGate(
-        gates.H,
-        [0,-1]
+const circuits = {
+    entanglement_00_11: compose_circuit(
+        embedGate(
+            gates.H,
+            [0,-1]
+        ),
+        gates.CNOT,
+        // adding the following entangles |01> and |10>
+        // embedGate(
+        //     gates.X,
+        //     [-1,0]
+        // ),
     ),
-    gates.CNOT,
-    embedGate(
-        gates.X,
-        [-1,0]
+    reverse_cnot: compose_circuit(
+        embedGate(
+            gates.CNOT,
+            [1,0]
+        ),
     ),
-)
+    QFT_4: compose_circuit(
+        embedGate(
+            gates.H,
+            [0,-1],
+        ),
+        // embedGate(
+        //     gates.CT,
+        //     [0,1],
+        // ),
+        embedGate(
+            gates.R1(1/4),
+            [-2,0],
+        ),
+        embedGate(
+            gates.H,
+            [-1,0],
+        ),
+    ),
+    QFT_8: compose_circuit(
+        embedGate(
+            gates.H,
+            [0,-1,-1],
+        ),
+        embedGate(
+            gates.S,
+            [0,-2,-1],
+        ),
+        embedGate(
+            gates.T,
+            [0,-1,-2],
+        ),
+        embedGate(
+            gates.H,
+            [-1,0,-1],
+        ),
+        embedGate(
+            gates.S,
+            [-1,0,-2],
+        ),
+        embedGate(
+            gates.H,
+            [-1,-1,0],
+        ),
+        embedGate(
+            gates.SWAP,
+            [0,-1,1],
+        ),
+    ),
+    QFT_16: compose_circuit(
+        embedGate(
+            gates.H,
+            [0,-1,-1,-1],
+        ),
+        embedGate(
+            gates.R1(1/2),
+            [0,-2,-1,-1],
+        ),
+        embedGate(
+            gates.R1(1/4),
+            [0,-1,-2,-1],
+        ),
+        embedGate(
+            gates.R1(1/8),
+            [0,-1,-1,-2],
+        ),
 
-printMatrix(circuit);
+        embedGate(
+            gates.H,
+            [-1,0,-1,-1],
+        ),
+        embedGate(
+            gates.R1(1/2),
+            [-1,0,-2,-1],
+        ),
+        embedGate(
+            gates.R1(1/4),
+            [-1,0,-1,-2],
+        ),
 
+        embedGate(
+            gates.H,
+            [-1,-1,0,-1],
+        ),
+        embedGate(
+            gates.R1(1/4),
+            [-1,-1,0,-2],
+        ),
+
+        embedGate(
+            gates.H,
+            [-1,-1,-1,0],
+        ),
+
+        embedGate(
+            gates.SWAP,
+            [0,-1,-1,1],
+        ),
+        embedGate(
+            gates.SWAP,
+            [-1,0,1,-1],
+        ),
+    )
+}
+
+console.log("QFT 16x16")
+printMatrix(circuits.QFT_16);
+
+
+console.log("")
+console.log("Entanglement between |00> and |11>")
+printMatrix(circuits.entanglement_00_11);
 printVector(
     mul_matvec(
-        circuit,
+        circuits.entanglement_00_11,
         Complex.vector(1,0,0,0),
     )
 );
-
-// printVector(
-//     mul_matvec(
-//     gates.CNOT,
-//     mul_matvec(
-//         embedGate(
-//             gates.H,
-//             [0,-1]
-//         ),
-//         Complex.vector(1,0,0,0),
-//     ))
-// );
