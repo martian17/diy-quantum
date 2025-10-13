@@ -204,7 +204,7 @@ const gates = {
     // T gate
     T: Complex.matrix(
         [1,0],
-        [0,[isq2,-isq2]],
+        [0,[isq2,isq2]],
     ),
     // S gate
     S: Complex.matrix(
@@ -242,6 +242,18 @@ const gates = {
         [0,1,0,0],
         [0,0,0,1],
         [0,0,1,0],
+    ),
+    CT: Complex.matrix(
+        [1,0,0,0],
+        [0,1,0,0],
+        [0,0,1,0],
+        [0,0,0,[isq2,isq2]],
+    ),
+    SWAP: Complex.matrix(
+        [1,0,0,0],
+        [0,0,1,0],
+        [0,1,0,0],
+        [0,0,0,1],
     ),
 }
 
