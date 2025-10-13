@@ -30,13 +30,16 @@ class Complex{
         );
     }
     toString(precision = 4){
-        let r = Math.abs(this.r).toString().slice(0,precision);
-        let i = Math.abs(this.i).toString().slice(0,precision)+"i";
+        const base = 10**precision;
+        let vr = Math.round(this.r * base)/base;
+        let vi = Math.round(this.i * base)/base;
+        let r = Math.abs(vr).toString().slice(0,precision);
+        let i = Math.abs(vi).toString().slice(0,precision)+"i";
         if(i === "1i")i = "i";
         if(r === "0" && i === "0i")return "0";
-        if(i === "0i")return `${this.r<0?"-":""}${r}`;
-        if(r === "0")return `${this.i<0?"-":""}${i}`;
-        return `${this.r<0?"-":""}${r}${this.i<0?"-":"+"}${i}`;
+        if(i === "0i")return `${vr<0?"-":""}${r}`;
+        if(r === "0")return `${vi<0?"-":""}${i}`;
+        return `${vr<0?"-":""}${r}${vi<0?"-":"+"}${i}`;
     }
     static vector(...values){
         return values.map(value=>{
