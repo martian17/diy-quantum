@@ -255,6 +255,34 @@ const gates = {
         [0,1,0,0],
         [0,0,0,1],
     ),
+    RX: function(radian_pi){
+        const theta = radian_pi * Math.PI;
+        return Complex.matrix(
+            [Math.cos(theta/2),[0,-Math.sin(theta/2)]],
+            [[0,-Math.sin(theta/2)],Math.cos(theta/2)]
+        );
+    },
+    RY: function(radian_pi){
+        const theta = radian_pi * Math.PI;
+        return Complex.matrix(
+            [Math.cos(theta/2),-Math.sin(theta/2)],
+            [Math.sin(theta/2),Math.cos(theta/2)]
+        );
+    },
+    RZ: function(radian_pi){
+        const theta = radian_pi * Math.PI;
+        return Complex.matrix(
+            [[Math.cos(theta/2),-Math.sin(theta/2)],0],
+            [0,[Math.cos(theta/2),Math.sin(theta/2)]]
+        );
+    },
+    R1: function(radian_pi){//radian over pi. Half rotation will be 1
+        const theta = radian_pi * Math.PI;
+        return Complex.matrix(
+            [1,0],
+            [0,[Math.cos(theta), Math.sin(theta)]]
+        );
+    }
 }
 
 const embedGate = function(gate, qubitMap){
