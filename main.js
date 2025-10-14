@@ -45,6 +45,25 @@ class Complex{
             i+c.i,
         );
     }
+    sub(c){
+        const {r,i} = this;
+        return new Complex(
+            r-c.r,
+            i-c.i,
+        );
+    }
+    conjugate(){
+        return new Complex(this.r, -this.i);
+    }
+    modulusSquare(){
+        return this.r**2 + this.i**2;
+    }
+    scale(k){
+        return new Complex(
+            this.r * k,
+            this.i * k,
+        );
+    }
     toString(precision = 4){
         const base = 10**precision;
         let r = roundFloatWithSign(this.r,precision);
@@ -210,6 +229,37 @@ const mul_mats = function(...mats){
     return acc;
 }
 
+const sub_vecs = function(vec1, vec2){
+    const result = [];
+    for(let i = 0; i < vec1.length; i++){
+        result.push(vec1[i].sub(vec2[i]));
+    }
+    return result;
+}
+
+const outerProduct = function(vec1, vec2){
+    const result = [];
+    for(let i = 0; i < vec1.length; i++){
+        const row = [];
+        result.push(row);
+        for(let j = 0; j < vec2.length; j++){
+            // complex multiplication commutes, so the order is irrelevant here
+            row.push(vec1[i].mul(vec2[j].conjugate()));
+        }
+    }
+    return result;
+}
+
+const outerSquare = function(vec){
+    return outerProduct(vec,vec);
+}
+
+const normalizeStateVector = function(vec){
+    const probability = vec.map(v=>v.modulusSquare()).reduce((a,b)=>a+b);
+    const normalizationBase = 1/Math.sqrt(probability);
+    return vec.map(v=>v.scale(normalizationBase))
+}
+
 const round = function(num,order){
     const base = 10**order;
     return Math.round(num * base)/base;
@@ -360,7 +410,11 @@ const gates = {
             [1,0],
             [0,[Math.cos(theta), Math.sin(theta)]]
         );
-    }
+    },
+
+    MES_Z_PLUS: outerSquare(
+        Complex.vector(1,0)
+    ),
 }
 
 const embedGate = function(gate, qubitMap){
@@ -536,6 +590,18 @@ const circuits = {
         }
         return compose_circuit(...circuit);
     },
+}
+
+const performMeasurment = function(state, measurmentMatrix){
+    const projection = mul_matvec(measurmentMatrix, state);
+    const probability = projection.map(v=>v.modulusSquare()).reduce((a,b)=>a+b);
+    if(Math.random() < probability){
+        return [normalizeStateVector(projection),1];
+    }else{
+        // I don't know if subtracting the projection from the state would give the state vector in case
+        // the measurment results in -1 state. Ask Michel about this
+        return [normalizeStateVector(sub_vecs(state, projection)),-1];
+    }
 }
 
 console.log("[QFT 8x8]");{
