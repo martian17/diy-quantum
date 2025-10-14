@@ -618,3 +618,106 @@ console.log("\n[Entanglement between |00> and |11>]");{
         )
     );
 }
+
+
+console.log("\n[Entanglement swapping]");{
+    // https://www.nature.com/articles/s41598-023-49326-4
+    // Mastriani, M. Simplified entanglement swapping protocol for the quantum Internet. Sci Rep 13, 21998 (2023). https://doi.org/10.1038/s41598-023-49326-4
+    const bell_00_11 = compose_circuit(
+        embedGate(
+            gates.H,
+            [0,-1]
+        ),
+        gates.CNOT,
+    );
+    const bell_00_11_reverse = compose_circuit(
+        gates.CNOT,
+        embedGate(
+            gates.H,
+            [0,-1]
+        ),
+    );
+    
+    const measurement1 = embedGate(
+        gates.MES_Z_PLUS,
+        [-1,0,-1,-1]
+    );
+    const measurement2 = embedGate(
+        gates.MES_Z_PLUS,
+        [-1,-1,0,-1]
+    );
+
+    let state = Complex.vector(1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+
+    const entanglement_circuit = compose_circuit(
+        // out comes the bell pairs
+        // pair 1
+        embedGate(
+            bell_00_11,
+            [0,1,-1,-1]
+        ),
+        // pair 2
+        embedGate(
+            bell_00_11,
+            [-1,-1,0,1]
+        ),
+        embedGate(
+            bell_00_11_reverse,
+            [-1,0,1,-1]
+        ),
+    );
+
+    state = mul_matvec(
+        entanglement_circuit, state
+    );
+
+    printStateVector(
+        state
+    );
+
+    let result1;
+    [state, result1] = performMeasurment(state, embedGate(
+        gates.MES_Z_PLUS,
+        [-1,0,-1,-1]
+    ));
+    let result2;
+    [state, result2] = performMeasurment(state, embedGate(
+        gates.MES_Z_PLUS,
+        [-1,-1,0,-1]
+    ));
+    console.log("Measurment result:",result1, result2);
+    console.log("State after measurment");
+    printStateVector(
+        state
+    );
+    if(result1 === -1){
+        state = mul_matvec(embedGate(
+            gates.Z,
+            [0,-1,-1,-1]
+        ),state);
+
+        //flip the measured bit for the ease of readability. In a real experiment, this step is not necessary.
+        state = mul_matvec(embedGate(
+            gates.X,
+            [-1,0,-1,-1]
+        ),state);
+    }
+    if(result2 === -1){
+        state = mul_matvec(embedGate(
+            gates.X,
+            [-1,-1,-1,0]
+        ),state);
+
+        //flip the measured bit for the ease of readability. In a real experiment, this step is not necessary.
+        state = mul_matvec(embedGate(
+            gates.X,
+            [-1,-1,0,-1]
+        ),state);
+    }
+    console.log("======================================================");
+    console.log("resulting (hopefully) entangled state, after performing post-measurment correction gates");
+    printStateVector(
+        state
+    );
+}
+
