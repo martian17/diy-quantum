@@ -360,6 +360,14 @@ const compose_circuit = function(...args){
     return mul_mats(...args.reverse());
 }
 
+const rep = function(n,v=0){
+    const arr = [];
+    for(let i = 0; i < n; i++){
+        arr.push(v);
+    }
+    return arr;
+}
+
 const circuits = {
     entanglement_00_11: compose_circuit(
         embedGate(
@@ -427,64 +435,33 @@ const circuits = {
             [0,-1,1],
         ),
     ),
-    QFT_16: compose_circuit(
-        embedGate(
-            gates.H,
-            [0,-1,-1,-1],
-        ),
-        embedGate(
-            gates.R1(1/2),
-            [0,-2,-1,-1],
-        ),
-        embedGate(
-            gates.R1(1/4),
-            [0,-1,-2,-1],
-        ),
-        embedGate(
-            gates.R1(1/8),
-            [0,-1,-1,-2],
-        ),
-
-        embedGate(
-            gates.H,
-            [-1,0,-1,-1],
-        ),
-        embedGate(
-            gates.R1(1/2),
-            [-1,0,-2,-1],
-        ),
-        embedGate(
-            gates.R1(1/4),
-            [-1,0,-1,-2],
-        ),
-
-        embedGate(
-            gates.H,
-            [-1,-1,0,-1],
-        ),
-        embedGate(
-            gates.R1(1/4),
-            [-1,-1,0,-2],
-        ),
-
-        embedGate(
-            gates.H,
-            [-1,-1,-1,0],
-        ),
-
-        embedGate(
-            gates.SWAP,
-            [0,-1,-1,1],
-        ),
-        embedGate(
-            gates.SWAP,
-            [-1,0,1,-1],
-        ),
-    )
+    QFT_N: function(n){
+        const baseMap = rep(n,-1);
+        const circuit = [];
+        for(let i = 0; i < n; i++){
+            circuit.push(embedGate(
+                gates.H,
+                baseMap.with(i,0),
+            ));
+            for(let j = 1; j < (n-i); j++){
+                circuit.push(embedGate(
+                    gates.R1(1/(2**j)),
+                    baseMap.with(i,0).with(i+j,-2),
+                ));
+            }
+        }
+        for(let i = 0; i < Math.floor(n/2); i++){
+            circuit.push(embedGate(
+                gates.SWAP,
+                baseMap.with(i,0).with(n-i-1,1),
+            ));
+        }
+        return compose_circuit(...circuit);
+    },
 }
 
-console.log("QFT 16x16")
-printMatrix(circuits.QFT_16);
+console.log("QFT 8x8")
+printMatrix(circuits.QFT_N(3));
 
 
 console.log("")
