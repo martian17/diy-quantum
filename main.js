@@ -538,16 +538,17 @@ const circuits = {
     },
 }
 
-console.log("QFT 8x8")
-printMatrix(circuits.QFT_N(3));
+console.log("[QFT 8x8]");{
+    printMatrix(circuits.QFT_N(3));
+}
 
 
-console.log("")
-console.log("Entanglement between |00> and |11>")
-printMatrix(circuits.entanglement_00_11);
-printVector(
-    mul_matvec(
-        circuits.entanglement_00_11,
-        Complex.vector(1,0,0,0),
-    )
-);
+console.log("\n[Entanglement between |00> and |11>]");{
+    printMatrix(circuits.entanglement_00_11);
+    printStateVector(
+        mul_matvec(
+            circuits.entanglement_00_11,
+            Complex.vector(1,0,0,0),
+        )
+    );
+}
