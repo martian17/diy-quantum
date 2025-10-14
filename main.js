@@ -10,6 +10,22 @@ const transpose = function(matrix){
     return result;
 };
 
+const roundFloatWithSign = function(val, precision = 4){
+    const base = 10**precision;
+    const rounded = Math.round(val * base)/base;
+    let sign = "+";
+    if(val < 0){
+        sign = "-";
+    }
+    return sign + Math.abs(rounded).toString().slice(0,precision);// max precision letters plus sign
+}
+
+const roundFloat = function(val, precision = 4){
+    const str = roundFloatWithSign(val, precision);
+    if(str[0] === "+")return str.slice(1);
+    return str;
+}
+
 class Complex{
     constructor(r, i){
         this.r = r;
@@ -31,15 +47,17 @@ class Complex{
     }
     toString(precision = 4){
         const base = 10**precision;
-        let vr = Math.round(this.r * base)/base;
-        let vi = Math.round(this.i * base)/base;
-        let r = Math.abs(vr).toString().slice(0,precision);
-        let i = Math.abs(vi).toString().slice(0,precision)+"i";
+        let r = roundFloatWithSign(this.r,precision);
+        let i = roundFloatWithSign(this.i,precision);
+        const r_sign = r[0];
+        const i_sign = i[0];
+        r = r.slice(1);
+        i = i.slice(1) + "i";
         if(i === "1i")i = "i";
         if(r === "0" && i === "0i")return "0";
-        if(i === "0i")return `${vr<0?"-":""}${r}`;
-        if(r === "0")return `${vi<0?"-":""}${i}`;
-        return `${vr<0?"-":""}${r}${vi<0?"-":"+"}${i}`;
+        if(i === "0i")return `${r_sign==="-"?"-":""}${r}`;
+        if(r === "0")return `${i_sign==="-"?"-":""}${i}`;
+        return `${r_sign==="-"?"-":""}${r}${i_sign}${i}`;
     }
     static vector(...values){
         return values.map(value=>{
@@ -82,6 +100,66 @@ const printVector = function(vector){
         process.stdout.write(vector[i].toString().padStart(textSize+1));
         process.stdout.write(" |\n");
     }
+}
+
+const columnsToString = function(...args){
+    args = args.map(arg=>{
+        if(arg instanceof Array){
+            return {
+                items: arg,
+            }
+        }
+        return arg;
+    });
+    const sizes = args.map(v=>{
+        if(typeof v === "string"){
+            return v.length;
+        }
+        if(!(v.items instanceof Array))throw new Error("Unknown type in printColumns, column.items not found");
+        return v.items.map(t=>t.length).reduce((a,b)=>a>b?a:b);
+    });
+    const height = args.map(v=>{
+        if(typeof v === "string")return 1;
+        return v.items.length;
+    }).reduce((a,b)=>a>b?a:b);
+    let rows = [];
+    for(let i = 0; i < height; i++){
+        let row = "";
+        for(let j = 0; j < args.length; j++){
+            const column = args[j];
+            if(typeof column === "string"){
+                row += column;
+                continue;
+            }
+            const item = column.items[i] || "";
+            if(column.padEnd){
+                row += item.padEnd(sizes[j], column.pad || " ");
+            }else{
+                row += item.padStart(sizes[j], column.pad || " ");
+            }
+        }
+        rows.push(row);
+    }
+    return rows.join("\n");
+}
+
+const printStateVector = function(vector){
+    const state = vector;
+    const probability = vector.map(v=>v.modulusSquare());
+    
+    const state_texts = state.map(v=>v.toString());
+    const probability_texts = probability.map(v=>roundFloat(v));
+    const dim = Math.round(Math.log(vector.length)/Math.log(2))
+    const tag_texts = state.map((_,i)=>`|${i.toString(2).padStart(dim,"0")}>`)
+
+    console.log(columnsToString(
+        ["", ...tag_texts, "sum"],
+        " | ",
+        ["states", ...state_texts, state.reduce((a,b)=>a.add(b)).toString()],
+        " | ",
+        ["probability", ...probability_texts, roundFloat(probability.reduce((a,b)=>a+b))],
+        " |",
+    ));
 }
 
 const mul_vecmat = function(vec, mat){
