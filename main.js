@@ -58,11 +58,19 @@ class Complex{
     modulusSquare(){
         return this.r**2 + this.i**2;
     }
+    magnitude(){
+        return Math.sqrt(this.modulusSquare())
+    }
     scale(k){
         return new Complex(
             this.r * k,
             this.i * k,
         );
+    }
+    static epsilon = 1e-12;
+    equal(c){
+        return Math.abs(c.r - this.r) < this.constructor.epsilon &&
+            Math.abs(c.i - this.i) < this.constructor.epsilon;
     }
     toString(precision = 4){
         const base = 10**precision;
@@ -78,6 +86,7 @@ class Complex{
         if(r === "0")return `${i_sign==="-"?"-":""}${i}`;
         return `${r_sign==="-"?"-":""}${r}${i_sign}${i}`;
     }
+    // should be overloeded to Complex[] but it's javascript so I'll just put it to Complex
     static vector(...values){
         return values.map(value=>{
             if(typeof value === "number"){
@@ -88,6 +97,23 @@ class Complex{
                 throw new Error("Unknown");
             }
         });
+    }
+    static vectorEqual(v1, v2){
+        if(v1.length !== v2.length)return false;
+        for(let i = 0; i < v1.length; i++){
+            if(!v1[i].equal(v2[i]))return false;
+        }
+        return true;
+    }
+    static vectorToFloat64Array(vector, targetBuffer){
+        if(!targetBuffer){
+            targetBuffer = new Float64Array(vector.length*2);
+        }
+        for(let i = 0; i < vector.length; i++){
+            targetBuffer[i<<1|0] = vector[i].r;
+            targetBuffer[i<<1|1] = vector[i].i;
+        }
+        return targetBuffer;
     }
     static matrix(...rows){
         return rows.map(row=>this.vector(...row));
@@ -260,6 +286,31 @@ const normalizeStateVector = function(vec){
     return vec.map(v=>v.scale(normalizationBase))
 }
 
+const normalizeStateVectorAndExtractFactor = function(vec){
+    let globalPhase;
+    for(let i = 0; i < vec.length; i++){
+        if(!vec[i].equal(C(0,0))){// this could have been cached, but we're writing javascript here, so performance doesn't matter
+            const m2 = vec[i].modulusSquare();
+            globalPhase = vec[i].scale(1/Math.sqrt(m2));
+            break;
+        }
+    }
+    if(!globalPhase){
+        // state is zero, in this case, return |ψ>=|000....00> and λ=C(0,0)
+        return {
+            state: vec.map(_=>C(0,0)).with(0,C(1,0)),
+            factor: C(0,0)
+        };
+    }
+    const probability = vec.map(v=>v.modulusSquare()).reduce((a,b)=>a+b);
+    const globalMagnitude = Math.sqrt(probability);
+    const compensationCoefficient = globalPhase.scale(1/globalMagnitude).conjugate();
+    return {
+        state: vec.map(v=>v.mul(compensationCoefficient)),
+        factor: globalPhase.scale(globalMagnitude)
+    };
+};
+
 const round = function(num,order){
     const base = 10**order;
     return Math.round(num * base)/base;
@@ -320,6 +371,275 @@ const getPauliGroup = function(){
 
 //getPauliGroup();
 
+
+
+const createRandomState = function(n){
+    // n qubits
+    let state = [];
+    for(let i = 0; i < 2**n; i++){
+        state.push(C(Math.random()-0.5, Math.random()-0.5));
+    }
+    return normalizeStateVector(state);
+}
+
+const vectorTensor = function(a, b){
+    // a upper b lower
+    const res = [];
+    for(let i = 0; i < a.length; i++){
+        for(let j = 0; j < b.length; j++){
+            res.push(a[i].mul(b[j]));
+        }
+    }
+    return res;
+}
+
+const loopBitShiftLeft = function(n, i){
+    i &= 31;
+    return n << (i) | n >>> (32 - i);
+};
+
+
+class Float64ArrayMap{
+    map = new Map();// number => bucket[array as key, value]
+    arrayEqual(a1,a2){// args: Float64Array[]
+        if(a1.length !== a2.length){
+            return false;
+        }
+    }
+    hash(vector0){
+        if(!(vector0 instanceof Float64Array))throw new Error("You are providing a wrong type for Float64ArrayMap");
+        const vector = new Int32Array(vector0.buffer);
+        let hash = 0;
+        for(let i = 0; i < vector.length; i++){
+            hash ^= loopBitShiftLeft(vector[i],i);
+        }
+        return hash;
+    }
+    getBucket(hash){
+        let bucket = this.map.get(hash);
+        if(bucket){
+            return bucket;
+        }
+        bucket = [];
+        this.map.set(hash,bucket);
+        return bucket;
+    }
+    set(key, value){// key: Float64Array
+        const hash = this.hash(key);
+        let bucket = this.getBucket(hash);
+        for(const entry of bucket){
+            const [key1, _value1] = entry;
+            if(this.arrayEqual(key,key1)){
+                entry[1] = value;
+                return;
+            }
+        }
+        bucket.push([key, value]);
+    }
+    get(key){// key: Float64Array
+        const hash = this.hash(key);
+        let bucket = this.getBucket(hash);
+        for(const entry of bucket){
+            const [key1, value1] = entry;
+            if(this.arrayEqual(key,key1)){
+                return value1;
+            }
+        }
+        return undefined;
+    }
+}
+
+class ComplexArrayMap{//unordered_map<Complex[], any>
+    map = new Map();// number => bucket[Complex[] as key, value]
+    constructor(){
+        this.F64B = new Float64Array(1);
+        this.I32B = new Int32Array(this.F64B.buffer);
+    }
+    hash(vector){
+        // Just pulled it out of my ass, but should be good enough as we use buckets
+        let hash = 0;
+        for(let i = 0; i < vector.length; i++){
+            const c = vector[i];
+            this.F64B[0] = c.r;
+            hash ^= loopBitShiftLeft(this.I32B[0] ^ this.I32B[1], i<<1);
+            this.F64B[0] = c.i;
+            hash ^= loopBitShiftLeft(this.I32B[0] ^ this.I32B[1], i<<1|1);
+        }
+        return hash;
+    }
+    getBucket(hash){
+        let bucket = this.map.get(hash);
+        if(bucket){
+            return bucket;
+        }
+        bucket = [];
+        this.map.set(hash,bucket);
+        return bucket;
+    }
+    set(key, value){// key: Complex[]
+        const hash = this.hash(key);
+        let bucket = this.getBucket(hash);
+        for(const entry of bucket){
+            const [key1, _value1] = entry;
+            if(Complex.vectorEqual(key,key1)){
+                entry[1] = value;
+                return;
+            }
+        }
+        bucket.push([key, value]);
+    }
+    get(key){// key: Complex[]
+        const hash = this.hash(key);
+        let bucket = this.getBucket(hash);
+        for(const entry of bucket){
+            const [key1, value1] = entry;
+            if(Complex.vectorEqual(key,key1)){
+                return value1;
+            }
+        }
+        return undefined;
+    }
+    getValues(){
+        return [...this.map.values()].map(bucket=>bucket.map(([_key, value])=>value)).flat();
+    }
+}
+
+// Caution: no quantization with ε, so it should be performed before calling this function
+const coalessStateVectorTerms = function(coefficients, vectors){
+    if(coefficients.length !== vectors.length)throw new Error(`coalessing failed: different vector sizes for coefficients and vectors`);
+    const terms = new ComplexArrayMap();// Complex[] => term
+    for(let i = 0; i < vectors.length; i++){
+        const state2 = vectors[i];
+        let term = terms.get(state2);
+        if(!term){
+            term = {
+                state1: coefficients.map(_=>C(0,0)),
+                state2: state2,
+                coefficient: null,
+                coefficientMagnitude: null,
+            };
+            terms.set(state2, term);
+        }
+        term.state1[i] = coefficients[i];
+    }
+    return terms.getValues().map((term)=>{
+        const {state, factor} = normalizeStateVectorAndExtractFactor(term.state1);
+        term.state1 = state;
+        term.coefficient = factor;
+        term.coefficientMagnitude = factor.magnitude();
+        return term;
+    }).sort((a, b)=>{
+        return b.coefficientMagnitude - a.coefficientMagnitude;
+    }).filter((term)=>{
+        return !term.coefficient.equal(C(0,0));
+    });
+};
+
+const decomposeState = function(parentSpace, indices1, indices2){
+    const d = Math.round(Math.log(parentSpace.length)/Math.log(2));
+    let mask1 = 0
+    for(let i = 0; i < indices1.length; i++){
+        mask1 |= 1 << (d - indices1[i] - 1);
+    }
+    // if second indices is not specified, take the inverse of indices1 in the ascending bit order
+    if(!indices2){
+        indices2 = [];
+        for(let i = 0; i < d; i++){
+            if((mask1>>>(d-i-1)&1) === 0){
+                indices2.push(i);
+            }
+        }
+    }
+    let mask2 = 0;
+    for(let i = 0; i < indices2.length; i++){
+        mask2 |= 1 << (d - indices2[i] - 1);
+    }
+
+    const d1 = indices1.length;
+    const d2 = indices2.length;
+
+    const vec1Terms = [];
+    const listOfVec2Terms = [];
+
+    const l1 = 2**d1;
+    const l2 = 2**d2;
+    for(let i = 0; i < l1; i++){
+        const vec2Terms = [];
+        let baseIndex = 0;
+        for(let j = 0; j < indices1.length; j++){
+            baseIndex |= (i>>>(d1-j-1)&1)<<(d-indices1[j]-1);
+        }
+        for(let j = 0; j < l2; j++){
+            let index = baseIndex;
+            for(let k = 0; k < indices1.length; k++){
+                index |= (j>>>(d2-k-1)&1)<<(d-indices2[k]-1);
+            }
+            vec2Terms.push(parentSpace[index]);
+        }
+        const {factor: λi, state: state_2i} = normalizeStateVectorAndExtractFactor(vec2Terms);
+        vec1Terms.push(λi);
+        listOfVec2Terms.push(state_2i);
+    }
+    const terms = coalessStateVectorTerms(vec1Terms, listOfVec2Terms);
+    // if the two qubit sets are entangled, then the the number of terms will be more than 1.
+    return terms;
+}
+
+const addParenthesisIfNeeded = function(expression){
+    if(expression.slice(1).match(/[+-]/)){
+        // vstr contains multiple term
+        expression = `(${expression})`;
+    }
+    return expression;
+}
+
+const stateVectorToString = function(state){
+    const dim = Math.round(Math.log(state.length)/Math.log(2))
+    let result = "";
+    for(let i = 0; i < state.length; i++){
+        const value = state[i];
+        if(value.equal(C(0,0)))continue;
+        let vstr = addParenthesisIfNeeded(value.toString());
+        const tagText = `|${i.toString(2).padStart(dim,"0")}>`;
+        let term = vstr + tagText;
+        if(i !== 0 && term[0] !== "-"){
+            term = "+"+term;
+        }
+        result += term;
+    }
+    return result;
+}
+
+// this takes terms[] type defined in the above function and prints it
+// I should really consider using typescript, or at this point just C++ or rust
+const termsToString = function(terms){
+    let res = "";
+    for(let i = 0; i < terms.length; i++){
+        let term = terms[i];
+        let coef = addParenthesisIfNeeded(term.coefficient.toString());
+        let state1Terms = addParenthesisIfNeeded(stateVectorToString(term.state1));
+        let state2Terms = addParenthesisIfNeeded(stateVectorToString(term.state2));
+        if(res === ""){
+            res += coef + "(" + state1Terms + "⊗ " + state2Terms + ")";
+        }else{
+            if(coef[0] === "-"){
+                res += " - " + coef.slice(1) + "(" + state1Terms + "⊗ " + state2Terms + ")";
+            }else{
+                res += " + " + coef + "(" + state1Terms + "⊗ " + state2Terms + ")";
+            }
+        }
+    }
+    return res;
+}
+
+const colors = {
+    orange: (str) => {
+        return `\u001b[33m${str}\u001b[0m`;
+    },
+    reversed: (str) => {
+        return `\u001b[7m${str}\u001b[0m`;
+    }
+}
 
 
 const isq2 = 1/Math.sqrt(2);
@@ -592,35 +912,58 @@ const circuits = {
     },
 }
 
-const performMeasurment = function(state, measurmentMatrix){
-    const projection = mul_matvec(measurmentMatrix, state);
+const performMeasurement = function(state, measurementMatrix){
+    const projection = mul_matvec(measurementMatrix, state);
     const probability = projection.map(v=>v.modulusSquare()).reduce((a,b)=>a+b);
     if(Math.random() < probability){
         return [normalizeStateVector(projection),1];
     }else{
         // I don't know if subtracting the projection from the state would give the state vector in case
-        // the measurment results in -1 state. Ask Michel about this
+        // the measurement results in -1 state. Ask Michel about this
         return [normalizeStateVector(sub_vecs(state, projection)),-1];
     }
 }
 
-console.log("[QFT 8x8]");{
+console.log(colors.reversed("[QFT 8x8]"));{
     printMatrix(circuits.QFT_N(3));
 }
 
 
-console.log("\n[Entanglement between |00> and |11>]");{
+console.log(colors.reversed("\n[Entanglement between |00> and |11>]"));{
     printMatrix(circuits.entanglement_00_11);
+    const entangledState = mul_matvec(
+        circuits.entanglement_00_11,
+        Complex.vector(1,0,0,0),
+    )
     printStateVector(
-        mul_matvec(
-            circuits.entanglement_00_11,
-            Complex.vector(1,0,0,0),
-        )
+        entangledState
     );
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(entangledState,[0]))));
+}
+
+console.log(colors.reversed("\n[Unentangled superposition 1/sqrt(4)(|00>+|01>+|10>+|11>)]"));{
+    printMatrix(circuits.entanglement_00_11);
+    const unentangledState = mul_matvec(
+        compose_circuit(
+            embedGate(
+                gates.H,
+                [0,-1]
+            ),
+            embedGate(
+                gates.H,
+                [-1,0]
+            ),
+        ),
+        Complex.vector(1,0,0,0),
+    )
+    printStateVector(
+        unentangledState
+    );
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(unentangledState,[0]))));
 }
 
 
-console.log("\n[Entanglement swapping]");{
+console.log(colors.reversed("\n[Entanglement swapping]"));{
     // https://www.nature.com/articles/s41598-023-49326-4
     // Mastriani, M. Simplified entanglement swapping protocol for the quantum Internet. Sci Rep 13, 21998 (2023). https://doi.org/10.1038/s41598-023-49326-4
     const bell_00_11 = compose_circuit(
@@ -674,19 +1017,20 @@ console.log("\n[Entanglement swapping]");{
     printStateVector(
         state
     );
+    console.log("state before measurement:", colors.orange(termsToString(decomposeState(state,[0,3]))));
 
     let result1;
-    [state, result1] = performMeasurment(state, embedGate(
+    [state, result1] = performMeasurement(state, embedGate(
         gates.MES_Z_PLUS,
         [-1,0,-1,-1]
     ));
     let result2;
-    [state, result2] = performMeasurment(state, embedGate(
+    [state, result2] = performMeasurement(state, embedGate(
         gates.MES_Z_PLUS,
         [-1,-1,0,-1]
     ));
-    console.log("Measurment result:",result1, result2);
-    console.log("State after measurment");
+    console.log("Measurement result:",result1, result2);
+    console.log("State after measurement");
     printStateVector(
         state
     );
@@ -715,9 +1059,10 @@ console.log("\n[Entanglement swapping]");{
         ),state);
     }
     console.log("======================================================");
-    console.log("resulting (hopefully) entangled state, after performing post-measurment correction gates");
+    console.log("resulting (hopefully) entangled state, after performing post-measurement correction gates");
     printStateVector(
         state
     );
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(state,[0,3]))));
 }
 
