@@ -7,7 +7,6 @@ const mixValue = function(v1, v2, r){
 
 const toGrayCode = n => n ^ (n >> 1);
 
-
 class DensityMatrixGraph {
     constructor(){
         this.canvas = document.createElement("canvas");
@@ -23,8 +22,57 @@ class DensityMatrixGraph {
         this.faceDrawer = new FaceDrawer(this.gl);
         
     }
+    setCube(
+        verticesRef, colorsRef, facesRef, phase,
+        x0, y0, z0, x1, y1, z1,
+        c0, c1, c2,
+        lineColor, lineWidth, epsilon
+    ){
+        const vertices = [];
+        const colors = [];
+        const faces = [];
+
+        const squareFaces = [
+            [0,1,3,2],
+            [2,3,7,6],
+            [6,7,5,4],
+            [4,5,2,1],
+            [1,5,7,3],
+            [0,2,6,4],
+        ];
+        for(let [v1,v2,v3,v4] of squareFaces){
+            for(let vert of [v1,v2,v3, v3,v4,v1]){
+                faces.push(vert);
+            }
+        }
+        
+        for(let x of [x0,x1]){
+            for(let y of [y0,y1]){
+                for(let z of [z0,z1]){
+                    vertices.push(x * 0.7);
+                    vertices.push(y * 0.7);
+                    vertices.push(z * 0.7);
+                    // mixing colors. a bit verbose but fast and readable
+                    colors.push(mixValue(c0[0], mixValue(c1[0], c2[0], phase), y));
+                    colors.push(mixValue(c0[1], mixValue(c1[1], c2[1], phase), y));
+                    colors.push(mixValue(c0[2], mixValue(c1[2], c2[2], phase), y));
+                    colors.push(1);
+                }
+            }
+        }
+
+        const offset = verticesRef.length / 3;
+        for(let i = 0; i < vertices.length; i++){
+            verticesRef.push(vertices[i]);
+        }
+        for(let i = 0; i < colors.length; i++){
+            colorsRef.push(colors[i]);
+        }
+        for(let i = 0; i < faces.length; i++){
+            facesRef.push(faces[i] + offset);
+        }
+    }
     updateGraph(densityMatrix){
-        let vertexOffset = 0;
         const vertices = [];
         const colors = [];
         const faces = [];
@@ -33,81 +81,16 @@ class DensityMatrixGraph {
         const c0 = [0.890, 0.267, 0.0];
         const c1 = [1.0, 0.933, 0.0];
         const c2 = [0.078, 1.0, 0.784];
+        const lineColor = [0.88,0.88,0.88];
+        const lineWidth = 0.01;
+        const epsilon = 0.001;
         for(let i = 0; i < densityMatrix.length; i++){
             const row = densityMatrix[i];
             for(let j = 0; j < row.length; j++){
-                // // find some way to do it mathematically
-                // // looping through faces
-                // let dimap = 0;
-                // for(let dim1 = 0; dim1 < 3; dim1++){
-                //     for(let depth = 0; depth < 2; depth++){
-                //         for(let _pidx = 0; _pidx < 4; _pidx++){
-                //             let pidx = toGrayCode(pidx);
-                //             let index = 0;
-                //             let pbit = 0;
-                //             for(let dim = 0; dim < 3; dim++){
-                //                 if(dim1 === dim){
-                //                     index |= depth << (2-depth);
-                //                 }else{
-                //                     index |= ((pidx >>> pbit)&1) << (2-pidx);
-                //                     pbit++;
-                //                 }
-                //             }
-                //             // at this point, index[0:3] forms a face
-                //             
-                //         }
-
-                //     }
-                // }
-                // for(let dim1 = 0; dim1 < 3; dim1++){
-                //     for(let pos = 0; pos < 2; pos++){
-                //         const [dim2, dim3] = [0,1,2].splice(dim1);
-                //         const v1 = [0,0,0].with(dim1,pos).with(dim2,0).with(dim3,0);
-                //         const v2 = [0,0,0].with(dim1,pos).with(dim2,0).with(dim3,1);
-                //         const v3 = [0,0,0].with(dim1,pos).with(dim2,1).with(dim3,1);
-                //         const v4 = [0,0,0].with(dim1,pos).with(dim2,1).with(dim3,0);
-                //     }
-
-                // }
-                const facesTemplate = [
-                    0,1,2,
-                    2,1,3,
-                    2,3,6,
-                    6,3,7,
-                    6,7,4,
-                    4,7,5,
-                    4,5,0,
-                    0,5,1,
-                    0,2,6,
-                    0,6,4,
-                    1,7,3,
-                    1,5,7,
-                ];
-                for(let value of facesTemplate){
-                    faces.push(value + vertexOffset);
-                }
-
-                // const edgesTemplate = [
-                //     [0,1],
-                //     [2,3],
-                //     [6,7],
-                //     [4,5],
-                //     [0,2],
-                //     [4,6],
-                //     [5,7],
-                //     [1,3],
-                //     [0,4],
-                //     [1,5],
-                //     [3,7],
-                //     [2,6],
-                // ];
-                // for(let value of edgesTemplate){
-                //     
-                //     faces.push(value + vertexOffset);
-                // }
-
+                //if(i === 0 && j === 0)continue;
                 const value = row[j];
                 const modulus = Math.sqrt(value.r ** 2 + value.i ** 2);
+                //const phase = (Math.atan2(value.i, value.r) + Math.PI*2)%(Math.PI*2);
                 const phase = Math.atan2(value.i, value.r);
                 const x0 = ((j + 0.1) / row.length-0.5)*2;
                 const x1 = ((j + 0.9) / row.length-0.5)*2;
@@ -115,23 +98,12 @@ class DensityMatrixGraph {
                 const z1 = ((i + 0.9) / densityMatrix.length-0.5)*2;
                 const y0 = 0;
                 const y1 = modulus;
-                
-                for(let x of [x0,x1]){
-                    for(let y of [y0,y1]){
-                        for(let z of [z0,z1]){
-                            vertices.push(x * 0.7);
-                            vertices.push(y * 0.7);
-                            vertices.push(z * 0.7);
-                            // mixing colors. a bit verbose but fast and readable
-                            colors.push(mixValue(c0[0], mixValue(c1[0], c2[0], phase), y));
-                            colors.push(mixValue(c0[1], mixValue(c1[1], c2[1], phase), y));
-                            colors.push(mixValue(c0[2], mixValue(c1[2], c2[2], phase), y));
-                            colors.push(1);
-
-                            vertexOffset++;
-                        }
-                    }
-                }
+                this.setCube(
+                    vertices, colors, faces, phase,
+                    x0, y0, z0, x1, y1, z1,
+                    c0, c1, c2,
+                    lineColor, lineWidth, epsilon
+                );
             }
         }
         this.faceDrawer.uploadVertexBuffer(new Float32Array(vertices));
