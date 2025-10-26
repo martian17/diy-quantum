@@ -11,6 +11,7 @@ export class FaceDrawer extends Drawer{
 
         // prepare buffers
         this.vertexBufferHandle = gl.createBuffer();
+        this.colorBufferHandle = gl.createBuffer();
         this.faceBufferHandle = gl.createBuffer();
 
         // bind vertex buffer to vertex attribute handle
@@ -19,6 +20,18 @@ export class FaceDrawer extends Drawer{
         gl.enableVertexAttribArray(vertexAttributeHandle);
         gl.vertexAttribPointer(
             vertexAttributeHandle,
+            3, // size
+            gl.FLOAT, // type
+            false, // normalize
+            0, // stride
+            0 //offset
+        );
+        // bind color buffer to color attribute handle
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBufferHandle);
+        const colorAttributeHandle = gl.getAttribLocation(this.program, "color");
+        gl.enableVertexAttribArray(colorAttributeHandle);
+        gl.vertexAttribPointer(
+            colorAttributeHandle,
             4, // size
             gl.FLOAT, // type
             false, // normalize
@@ -30,6 +43,11 @@ export class FaceDrawer extends Drawer{
     uploadVertexBuffer(f32){
         const {gl} = this;
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBufferHandle);
+        gl.bufferData(gl.ARRAY_BUFFER, f32, gl.STATIC_DRAW);
+    }
+    uploadColorBuffer(f32){
+        const {gl} = this;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.colorBufferHandle);
         gl.bufferData(gl.ARRAY_BUFFER, f32, gl.STATIC_DRAW);
     }
     uploadFaceBuffer(u16){
@@ -59,10 +77,11 @@ export class FaceDrawer extends Drawer{
         
         precision highp float;
 
-        in vec4 vertex;
+        in vec3 vertex;
+        in vec4 color;
         uniform float rotation;
         out float height;
-        out float phase;
+        out vec4 color_v;
         
         mat3 roty(float theta){
             return mat3(
@@ -84,10 +103,9 @@ export class FaceDrawer extends Drawer{
             // rotation on the y axis
             // roration -> view angle adjustment
             mat3 R = rotx(0.5) * roty(rotation); 
-            vec3 position = R * vertex.xyz;
+            vec3 position = R * vertex;
             gl_Position = vec4(position.x, position.y, position.z / 10.0, 1.0);
-            height = vertex.y;
-            phase = vertex[3];
+            color_v = color;
         }
     `.trim();
     fragmentSrc = `
@@ -95,16 +113,11 @@ export class FaceDrawer extends Drawer{
         
         precision highp float;
         
-        in float height;
-        in float phase;
+        in vec4 color_v;
         out vec4 output_color;
         
         void main(){
-            // use https://ohmycolor.app/color-picker/
-            vec4 color_0 = vec4(0.890, 0.267, 0.0, 1.0);
-            vec4 color_1 = vec4(1.0, 0.933, 0.0, 1.0);
-            vec4 color_2 = vec4(0.078, 1.0, 0.784, 1.0);
-            output_color = mix(color_0, mix(color_1, color_2, phase), height);
+            output_color = color_v;
         }
     `.trim();
 }
