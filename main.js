@@ -7,6 +7,9 @@ const mixValue = function(v1, v2, r){
 
 const toGrayCode = n => n ^ (n >> 1);
 
+const norm = (a,b,c)=>Math.sqrt(a**2 + b**2 + c**2);
+
+
 class DensityMatrixGraph {
     constructor(){
         this.canvas = document.createElement("canvas");
@@ -61,6 +64,89 @@ class DensityMatrixGraph {
             }
         }
 
+        const lineIndexOffset = vertices.length / 3;
+
+        let vertNormals = (new Array(8)).fill(0).map(_=>[0,0,0]);
+        const faceNormals = squareFaces.map(face =>{
+            const ax = vertices[face[1]*3+0] - vertices[face[0]*3+0]
+            const ay = vertices[face[1]*3+1] - vertices[face[0]*3+1]
+            const az = vertices[face[1]*3+2] - vertices[face[0]*3+2]
+            const bx = vertices[face[2]*3+0] - vertices[face[0]*3+0]
+            const by = vertices[face[2]*3+1] - vertices[face[0]*3+1]
+            const bz = vertices[face[2]*3+2] - vertices[face[0]*3+2]
+            const nx = ay * bz - az * by;
+            const ny = az * bx - ax * bz;
+            const nz = ax * by - ay * bx;
+            const n = norm(nx,ny,nz);
+            for(let i = 0; i < face.length; i++){
+                const vidx = face[i];
+                vertNormals[vidx][0] += nx/n;
+                vertNormals[vidx][1] += ny/n;
+                vertNormals[vidx][2] += nz/n;
+            }
+            return [nx/n,ny/n,nz/n];
+        });
+        vertNormals.forEach(normal=>{
+            const n = norm(...normal);
+            normal[0] /= n * 1000;
+            normal[1] /= n * 1000;
+            normal[2] /= n * 1000;
+        });
+
+        for(let i = 0; i < vertNormals.length; i++){
+            vertices.push(vertices[i*3+0] + vertNormals[i][0]*epsilon);
+            vertices.push(vertices[i*3+1] + vertNormals[i][1]*epsilon);
+            vertices.push(vertices[i*3+2] + vertNormals[i][2]*epsilon);
+            colors.push(lineColor[0]);
+            colors.push(lineColor[1]);
+            colors.push(lineColor[2]);
+            colors.push(1);
+        }
+
+        for(let i = 0; i < squareFaces.length; i++){
+            const face = squareFaces[i];
+            // calculating normal
+            let xavg = 0;
+            let yavg = 0;
+            let zavg = 0;
+            for(let j = 0; j < face.length; j++){
+                const vidx = face[j];
+                xavg += vertices[vidx*3+0];
+                yavg += vertices[vidx*3+1];
+                zavg += vertices[vidx*3+2];
+            }
+            xavg = xavg / face.length + faceNormals[i][0]*epsilon;
+            yavg = yavg / face.length + faceNormals[i][1]*epsilon;
+            zavg = zavg / face.length + faceNormals[i][2]*epsilon;
+            const faceIndexOffset = vertices.length / 3;
+            for(let j = 0; j < face.length; j++){
+                const x = vertices[face[j]*3+0];
+                const y = vertices[face[j]*3+1];
+                const z = vertices[face[j]*3+2];
+                const n = norm(xavg-x,yavg-y,zavg-z);
+                const dx = (xavg - x)/n;
+                const dy = (yavg - y)/n;
+                const dz = (zavg - z)/n;
+                vertices.push(x + dx*lineWidth);
+                vertices.push(y + dy*lineWidth);
+                vertices.push(z + dz*lineWidth);
+                colors.push(lineColor[0]);
+                colors.push(lineColor[1]);
+                colors.push(lineColor[2]);
+                colors.push(1);
+                const vidx1 = lineIndexOffset + face[j];
+                const vidx2 = lineIndexOffset + face[(j+1)%face.length];
+                const vidx3 = faceIndexOffset + (j+1)%face.length;
+                const vidx4 = faceIndexOffset + j;
+                faces.push(vidx1);
+                faces.push(vidx2);
+                faces.push(vidx3);
+                faces.push(vidx3);
+                faces.push(vidx4);
+                faces.push(vidx1);
+            }
+        }
+
         const offset = verticesRef.length / 3;
         for(let i = 0; i < vertices.length; i++){
             verticesRef.push(vertices[i]);
@@ -81,9 +167,10 @@ class DensityMatrixGraph {
         const c0 = [0.890, 0.267, 0.0];
         const c1 = [1.0, 0.933, 0.0];
         const c2 = [0.078, 1.0, 0.784];
-        const lineColor = [0.88,0.88,0.88];
-        const lineWidth = 0.01;
-        const epsilon = 0.001;
+        //const lineColor = [0.33,0.33,0.33];
+        const lineColor = [0,0,0];
+        const lineWidth = 0.002;
+        const epsilon = 0.01;
         for(let i = 0; i < densityMatrix.length; i++){
             const row = densityMatrix[i];
             for(let j = 0; j < row.length; j++){
