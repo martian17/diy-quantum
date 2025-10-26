@@ -2,8 +2,7 @@ import {Drawer} from "./drawer.js";
 
 export class FaceDrawer extends Drawer{
     constructor(gl){
-        super();
-        this.gl = gl;
+        super(gl);
         this.compileAndLink();
 
         // set VAO to hang vertices and indices off of

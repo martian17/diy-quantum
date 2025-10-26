@@ -1,4 +1,7 @@
 export class Drawer{
+    constructor(gl){
+        this.gl = gl;
+    }
     compileIndividual(type, source){
         const gl = this.gl;
         const shader = gl.createShader(type);
