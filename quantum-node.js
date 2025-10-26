@@ -128,17 +128,24 @@ export const C = function(r,i){
 
 export const printMatrix = function(matrix){
     const sizemap = transpose(matrix).map(col=>col.map(v=>v.toString().length).reduce((a,b)=>a>b?a:b));
-    let res = "";
     for(let i = 0; i < matrix.length; i++){
         const row = matrix[i];
-        res += "|";
+        process.stdout.write("|");
         for(let j = 0; j < row.length; j++){
-            res += row[j].toString().padStart(sizemap[j]+1);
+            process.stdout.write(row[j].toString().padStart(sizemap[j]+1));
         }
-        res += " |\n";
+        process.stdout.write(" |\n");
     }
-    console.log(res);
-};
+}
+
+const printVector = function(vector){
+    const textSize = vector.map(v=>v.toString().length).reduce((a,b)=>a>b?a:b);
+    for(let i = 0; i < vector.length; i++){
+        process.stdout.write("|");
+        process.stdout.write(vector[i].toString().padStart(textSize+1));
+        process.stdout.write(" |\n");
+    }
+}
 
 const columnsToString = function(...args){
     args = args.map(arg=>{
@@ -198,6 +205,18 @@ export const printStateVector = function(vector){
         ["probability", ...probability_texts, roundFloat(probability.reduce((a,b)=>a+b))],
         " |",
     ));
+}
+
+const mul_vecmat = function(vec, mat){
+    const res = [];
+    for(let i = 0; i < mat[0].length; i++){
+        let v = C(0,0);
+        for(let j = 0; j < mat.length; j++){
+            v = v.add(vec[i].mul(mat[j][i]));
+        }
+        res.push(v);
+    }
+    return res;
 }
 
 export const mul_matvec = function(mat, vec){
@@ -261,7 +280,7 @@ export const outerSquare = function(vec){
     return outerProduct(vec,vec);
 }
 
-export const normalizeStateVector = function(vec){
+const normalizeStateVector = function(vec){
     const probability = vec.map(v=>v.modulusSquare()).reduce((a,b)=>a+b);
     const normalizationBase = 1/Math.sqrt(probability);
     return vec.map(v=>v.scale(normalizationBase))
@@ -297,19 +316,138 @@ const round = function(num,order){
     return Math.round(num * base)/base;
 }
 
-export const createRandomState = function(n){
+const matStringify = function(mat){
+    return JSON.stringify(mat.map(r=>r.map(c=>[round(c.r,5),round(c.i,5)])));
+}
+
+const getPauliGroup = function(){
+    const isq2 = 1/Math.sqrt(2);
+    const group = new Map([
+        Complex.matrix(
+            [isq2,isq2],
+            [isq2,-isq2]
+        ),
+        Complex.matrix(
+            [0,1],
+            [1,0]
+        ),
+        Complex.matrix(
+            [0,[0,-1]],
+            [[0,1],0]
+        ),
+        Complex.matrix(
+            [1,0],
+            [0,-1]
+        ),
+    ].map(mat=>[matStringify(mat),mat]));
+    for(let matrix of group.values()){
+        printMatrix(matrix)
+        console.log("");
+    }
+    console.log("-----------------------");
+    while(true){
+        const values = [...group.values()];
+        let dn = 0;
+        for(let mat1 of values){
+            for(let mat2 of values){
+                const mat3 = mul_matmat(mat1, mat2);
+                const index = matStringify(mat3);
+                if(group.has(index))continue;
+                group.set(index, mat3);
+                dn++;
+            }
+        }
+        if(dn === 0)break;
+    }
+    const result = [...group.values()];
+    for(let matrix of result){
+        printMatrix(matrix)
+        console.log("");
+    }
+    console.log(result.length);
+    return result;
+}
+
+
+//getPauliGroup();
+
+
+
+const createRandomState = function(n){
     // n qubits
     let state = [];
     for(let i = 0; i < 2**n; i++){
         state.push(C(Math.random()-0.5, Math.random()-0.5));
     }
     return normalizeStateVector(state);
-};
+}
+
+const vectorTensor = function(a, b){
+    // a upper b lower
+    const res = [];
+    for(let i = 0; i < a.length; i++){
+        for(let j = 0; j < b.length; j++){
+            res.push(a[i].mul(b[j]));
+        }
+    }
+    return res;
+}
 
 const loopBitShiftLeft = function(n, i){
     i &= 31;
     return n << (i) | n >>> (32 - i);
 };
+
+
+class Float64ArrayMap{
+    map = new Map();// number => bucket[array as key, value]
+    arrayEqual(a1,a2){// args: Float64Array[]
+        if(a1.length !== a2.length){
+            return false;
+        }
+    }
+    hash(vector0){
+        if(!(vector0 instanceof Float64Array))throw new Error("You are providing a wrong type for Float64ArrayMap");
+        const vector = new Int32Array(vector0.buffer);
+        let hash = 0;
+        for(let i = 0; i < vector.length; i++){
+            hash ^= loopBitShiftLeft(vector[i],i);
+        }
+        return hash;
+    }
+    getBucket(hash){
+        let bucket = this.map.get(hash);
+        if(bucket){
+            return bucket;
+        }
+        bucket = [];
+        this.map.set(hash,bucket);
+        return bucket;
+    }
+    set(key, value){// key: Float64Array
+        const hash = this.hash(key);
+        let bucket = this.getBucket(hash);
+        for(const entry of bucket){
+            const [key1, _value1] = entry;
+            if(this.arrayEqual(key,key1)){
+                entry[1] = value;
+                return;
+            }
+        }
+        bucket.push([key, value]);
+    }
+    get(key){// key: Float64Array
+        const hash = this.hash(key);
+        let bucket = this.getBucket(hash);
+        for(const entry of bucket){
+            const [key1, value1] = entry;
+            if(this.arrayEqual(key,key1)){
+                return value1;
+            }
+        }
+        return undefined;
+    }
+}
 
 class ComplexArrayMap{//unordered_map<Complex[], any>
     map = new Map();// number => bucket[Complex[] as key, value]
@@ -397,7 +535,7 @@ const coalessStateVectorTerms = function(coefficients, vectors){
     });
 };
 
-export const decomposeState = function(parentSpace, indices1, indices2){
+const decomposeState = function(parentSpace, indices1, indices2){
     const d = Math.round(Math.log(parentSpace.length)/Math.log(2));
     let mask1 = 0
     for(let i = 0; i < indices1.length; i++){
@@ -474,7 +612,7 @@ const stateVectorToString = function(state){
 
 // this takes terms[] type defined in the above function and prints it
 // I should really consider using typescript, or at this point just C++ or rust
-export const decomposedStateTermsToString = function(terms){
+const termsToString = function(terms){
     let res = "";
     for(let i = 0; i < terms.length; i++){
         let term = terms[i];
@@ -691,7 +829,107 @@ export const nullStateVector = function(n){
     return res;
 }
 
-export const performMeasurement = function(state, measurementMatrix){
+const circuits = {
+    entanglement_00_11: composeCircuit(
+        embedGate(
+            gates.H,
+            [0,-1]
+        ),
+        gates.CNOT,
+        // embedGate(
+        //     gates.Z,
+        //     [-2,0]
+        // ),
+        // embedGate(
+        //     gates.X,
+        //     [-1,0]
+        // ),
+        // adding the following entangles |01> and |10>
+        // embedGate(
+        //     gates.X,
+        //     [-1,0]
+        // ),
+    ),
+    reverse_cnot: composeCircuit(
+        embedGate(
+            gates.CNOT,
+            [1,0]
+        ),
+    ),
+    QFT_4: composeCircuit(
+        embedGate(
+            gates.H,
+            [0,-1],
+        ),
+        // embedGate(
+        //     gates.CT,
+        //     [0,1],
+        // ),
+        embedGate(
+            gates.R1(1/4),
+            [-2,0],
+        ),
+        embedGate(
+            gates.H,
+            [-1,0],
+        ),
+    ),
+    QFT_8: composeCircuit(
+        embedGate(
+            gates.H,
+            [0,-1,-1],
+        ),
+        embedGate(
+            gates.S,
+            [0,-2,-1],
+        ),
+        embedGate(
+            gates.T,
+            [0,-1,-2],
+        ),
+        embedGate(
+            gates.H,
+            [-1,0,-1],
+        ),
+        embedGate(
+            gates.S,
+            [-1,0,-2],
+        ),
+        embedGate(
+            gates.H,
+            [-1,-1,0],
+        ),
+        embedGate(
+            gates.SWAP,
+            [0,-1,1],
+        ),
+    ),
+    QFT_N: function(n){
+        const baseMap = rep(n,-1);
+        const circuit = [];
+        for(let i = 0; i < n; i++){
+            circuit.push(embedGate(
+                gates.H,
+                baseMap.with(i,0),
+            ));
+            for(let j = 1; j < (n-i); j++){
+                circuit.push(embedGate(
+                    gates.R1(1/(2**j)),
+                    baseMap.with(i,0).with(i+j,-2),
+                ));
+            }
+        }
+        for(let i = 0; i < Math.floor(n/2); i++){
+            circuit.push(embedGate(
+                gates.SWAP,
+                baseMap.with(i,0).with(n-i-1,1),
+            ));
+        }
+        return composeCircuit(...circuit);
+    },
+}
+
+const performMeasurement = function(state, measurementMatrix){
     const projection = mul_matvec(measurementMatrix, state);
     const probability = projection.map(v=>v.modulusSquare()).reduce((a,b)=>a+b);
     if(Math.random() < probability){
@@ -701,4 +939,375 @@ export const performMeasurement = function(state, measurementMatrix){
         // the measurement results in -1 state. Ask Michel about this
         return [normalizeStateVector(sub_vecs(state, projection)),-1];
     }
+}
+
+console.log(colors.reversed("[QFT 8x8]"));{
+    printMatrix(circuits.QFT_N(3));
+}
+
+
+console.log(colors.reversed("\n[Entanglement between |00> and |11>]"));{
+    printMatrix(circuits.entanglement_00_11);
+    const entangledState = mul_matvec(
+        circuits.entanglement_00_11,
+        Complex.vector(1,0,0,0),
+    )
+    printStateVector(
+        entangledState
+    );
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(entangledState,[0]))));
+}
+
+console.log(colors.reversed("\n[Unentangled superposition 1/sqrt(4)(|00>+|01>+|10>+|11>)]"));{
+    printMatrix(circuits.entanglement_00_11);
+    const unentangledState = mul_matvec(
+        composeCircuit(
+            embedGate(
+                gates.H,
+                [0,-1]
+            ),
+            embedGate(
+                gates.H,
+                [-1,0]
+            ),
+        ),
+        Complex.vector(1,0,0,0),
+    )
+    printStateVector(
+        unentangledState
+    );
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(unentangledState,[0]))));
+}
+
+
+console.log(colors.reversed("\n[Entanglement swapping]"));{
+    // https://www.nature.com/articles/s41598-023-49326-4
+    // Mastriani, M. Simplified entanglement swapping protocol for the quantum Internet. Sci Rep 13, 21998 (2023). https://doi.org/10.1038/s41598-023-49326-4
+    const bell_00_11 = composeCircuit(
+        embedGate(
+            gates.H,
+            [0,-1]
+        ),
+        gates.CNOT,
+    );
+    const bell_00_11_reverse = composeCircuit(
+        gates.CNOT,
+        embedGate(
+            gates.H,
+            [0,-1]
+        ),
+    );
+    
+    const measurement1 = embedGate(
+        gates.MES_Z_PLUS,
+        [-1,0,-1,-1]
+    );
+    const measurement2 = embedGate(
+        gates.MES_Z_PLUS,
+        [-1,-1,0,-1]
+    );
+
+    let state = Complex.vector(1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
+
+    const entanglement_circuit = composeCircuit(
+        // out comes the bell pairs
+        // pair 1
+        embedGate(
+            bell_00_11,
+            [0,1,-1,-1]
+        ),
+        // pair 2
+        embedGate(
+            bell_00_11,
+            [-1,-1,0,1]
+        ),
+        embedGate(
+            bell_00_11_reverse,
+            [-1,0,1,-1]
+        ),
+    );
+
+    state = mul_matvec(
+        entanglement_circuit, state
+    );
+
+    printStateVector(
+        state
+    );
+    console.log("state before measurement:", colors.orange(termsToString(decomposeState(state,[0,3]))));
+
+    let result1;
+    [state, result1] = performMeasurement(state, embedGate(
+        gates.MES_Z_PLUS,
+        [-1,0,-1,-1]
+    ));
+    let result2;
+    [state, result2] = performMeasurement(state, embedGate(
+        gates.MES_Z_PLUS,
+        [-1,-1,0,-1]
+    ));
+    console.log("Measurement result:",result1, result2);
+    console.log("State after measurement");
+    printStateVector(
+        state
+    );
+    if(result1 === -1){
+        state = mul_matvec(embedGate(
+            gates.Z,
+            [0,-1,-1,-1]
+        ),state);
+
+        //flip the measured bit for the ease of readability. In a real experiment, this step is not necessary.
+        state = mul_matvec(embedGate(
+            gates.X,
+            [-1,0,-1,-1]
+        ),state);
+    }
+    if(result2 === -1){
+        state = mul_matvec(embedGate(
+            gates.X,
+            [-1,-1,-1,0]
+        ),state);
+
+        //flip the measured bit for the ease of readability. In a real experiment, this step is not necessary.
+        state = mul_matvec(embedGate(
+            gates.X,
+            [-1,-1,0,-1]
+        ),state);
+    }
+    console.log("======================================================");
+    console.log("resulting (hopefully) entangled state, after performing post-measurement correction gates");
+    printStateVector(
+        state
+    );
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(state,[0,3]))));
+}
+
+console.log(colors.reversed("\n[Graph state]"));{
+    const graph = [
+        [0,1,1,0],
+        [1,0,1,0],
+        [1,1,0,1],
+        [0,0,1,0],
+    ];
+    const V = graph.length;
+    console.log("creating a graph state using the circuit definition");
+    let state = nullStateVector(V).with(0,C(1,0));
+    // prepare unentangled hadamard state
+    for(let i = 0; i < V; i++){
+        state = mul_matvec(
+            embedGate(
+                gates.H,
+                rep(V,-1).with(i,0)
+            ),
+            state
+        );
+    }
+    outer:
+    for(let v1 = 0; v1 < V; v1++){
+        for(let v2 = v1; v2 < V; v2++){
+            if(graph[v1][v2] !== 1)continue;
+            state = mul_matvec(
+                embedGate(
+                    gates.Z,
+                    rep(V,-1).with(v1,0).with(v2,-2)
+                ),
+                state
+            );
+            //break outer;
+        }
+    }
+    printStateVector(state);
+    console.log("resulting state:", colors.orange(termsToString(decomposeState(state,[0,1,2]))));
+
+    console.log("\nstabilizer formalism consistency check");
+    console.log("creating a circuit with the stabilizer formalism definition");
+    let circuit = embedGate(
+        gates.I,
+        rep(V,-1).with(0,0)
+    );
+    //printMatrix(circuit);
+    for(let v1 = 0; v1 < V; v1++){
+        circuit = mul_matmat(
+            circuit,
+            embedGate(
+                gates.X,
+                rep(V,-1).with(v1,0)
+            )
+        );
+        for(let v2 = 0; v2 < V; v2++){
+            if(graph[v1][v2] !== 1)continue;
+            circuit = mul_matmat(
+                circuit,
+                embedGate(
+                    gates.Z,
+                    rep(V,-1).with(v2,0)
+                )
+            );
+        }
+    }
+
+    console.log("\nconfirm it's an Eigenstate to the stabilizer circuit");
+    printStateVector(
+        mul_matvec(
+            circuit,
+            state
+        )
+    );
+}
+
+console.log(colors.reversed("\n[GHZ state]"));{
+    const circuit = composeCircuit(
+        embedGate(
+            gates.H,
+            [0,-1,-1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [0,1,-1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [-1,0,1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [-1,-1,0,1]
+        ),
+    );
+    const state = mul_matvec(
+            circuit,
+            nullStateVector(4).with(0,C(1,0))
+        )
+    printStateVector(state);
+    console.log(colors.orange(termsToString(decomposeState(state,[0,1,2,3]))));
+}
+
+console.log(colors.reversed("\n[Combining two GHZ states]"));{
+    const circuit = composeCircuit(
+        // GHZ 1
+        embedGate(
+            gates.H,
+            [0,-1,-1,-1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [0,1,-1,-1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [-1,0,1,-1,-1]
+        ),
+        // GHZ 2
+        embedGate(
+            gates.H,
+            [-1,-1,-1,0,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [-1,-1,-1,0,1]
+        ),
+    );
+    printStateVector(mul_matvec(
+        circuit,
+        nullStateVector(5).with(0,C(1,0))
+    ));
+    // now perform bell basis measurement
+    printStateVector(mul_matvec(
+        composeCircuit(
+            circuit,
+            embedGate(
+                gates.H,
+                [-1,-1,0,-1,-1]
+            ),
+            embedGate(
+                gates.CNOT,
+                [-1,-1,0,1,-1]
+            ),
+        ),
+        nullStateVector(5).with(0,C(1,0))
+    ));
+}
+
+// console.log(colors.reversed("\n[Graph state: stabilizer formalism definition]"));{
+//     const graph = [
+//         [0,1,1,0],
+//         [1,0,1,0],
+//         [1,1,0,1],
+//         [0,0,1,0],
+//     ];
+//     const V = graph.length;
+//     let state = nullStateVector(V).with(0,C(1,0));
+//     printMatrix(circuit);
+//     printStateVector(
+//         mul_matvec(
+//             circuit,
+//             state
+//         )
+//     );
+// }
+
+
+// console.log(colors.reversed("\n[Quantum Tomography]"));{
+//     const bell_00_11 = composeCircuit(
+//         embedGate(
+//             gates.H,
+//             [0,-1]
+//         ),
+//         gates.CNOT,
+//     );
+//     printStateVector(
+//         mul_matvec(
+//             bell_00_11,
+//             
+//         )
+//     );
+// 
+// }
+
+
+
+
+console.log(colors.reversed("\n[GHZ state]"));{
+    const circuit = composeCircuit(
+        embedGate(
+            gates.H,
+            [0,-1,-1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [0,1,-1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [-1,0,1,-1]
+        ),
+        embedGate(
+            gates.CNOT,
+            [-1,-1,0,1]
+        ),
+
+        embedGate(
+            gates.H,
+            [0,-1,-1,-1]
+        ),
+        embedGate(
+            gates.H,
+            [-1,0,-1,-1]
+        ),
+        embedGate(
+            gates.H,
+            [-1,-1,0,-1]
+        ),
+        embedGate(
+            gates.H,
+            [-1,-1,-1,0]
+        ),
+    );
+    const state = mul_matvec(
+            circuit,
+            nullStateVector(4).with(0,C(1,0))
+        )
+    printStateVector(state);
+    console.log(colors.orange(termsToString(decomposeState(state,[0,1,2,3]))));
 }
