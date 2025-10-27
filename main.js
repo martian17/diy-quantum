@@ -13,8 +13,8 @@ const norm = (a,b,c)=>Math.sqrt(a**2 + b**2 + c**2);
 class DensityMatrixGraph {
     constructor(){
         this.canvas = document.createElement("canvas");
-        this.canvas.width = 500;
-        this.canvas.height = 500;
+        this.canvas.width = 1500;
+        this.canvas.height = 1500;
         this.gl = this.canvas.getContext("webgl2", {antialias: true, premultipliedAlpha: true, depth: true});
         this.gl.enable(this.gl.DEPTH_TEST);
         this.gl.depthFunc(this.gl.LEQUAL);
@@ -36,10 +36,10 @@ class DensityMatrixGraph {
         const faces = [];
 
         const squareFaces = [
-            [0,1,3,2],
-            [2,3,7,6],
-            [6,7,5,4],
-            [4,5,2,1],
+            [0,4,5,1],
+            [4,6,7,5],
+            [6,2,3,7],
+            [2,0,1,3],
             [1,5,7,3],
             [0,2,6,4],
         ];
@@ -84,13 +84,9 @@ class DensityMatrixGraph {
                 vertNormals[vidx][1] += ny/n;
                 vertNormals[vidx][2] += nz/n;
             }
+            // eyeball that the normal is unit
+            // console.log(nx/n,ny/n,nz/n);
             return [nx/n,ny/n,nz/n];
-        });
-        vertNormals.forEach(normal=>{
-            const n = norm(...normal);
-            normal[0] /= n * 1000;
-            normal[1] /= n * 1000;
-            normal[2] /= n * 1000;
         });
 
         for(let i = 0; i < vertNormals.length; i++){
@@ -120,13 +116,32 @@ class DensityMatrixGraph {
             zavg = zavg / face.length + faceNormals[i][2]*epsilon;
             const faceIndexOffset = vertices.length / 3;
             for(let j = 0; j < face.length; j++){
-                const x = vertices[face[j]*3+0];
-                const y = vertices[face[j]*3+1];
-                const z = vertices[face[j]*3+2];
-                const n = norm(xavg-x,yavg-y,zavg-z);
-                const dx = (xavg - x)/n;
-                const dy = (yavg - y)/n;
-                const dz = (zavg - z)/n;
+                const left   = (lineIndexOffset + face[(j-1+face.length)%face.length])*3;
+                const center = (lineIndexOffset + face[j])*3;
+                const right  = (lineIndexOffset + face[(j+1)%face.length])*3;
+
+                // fast vector operation in javascript is painful
+                let dx1 = vertices[left+0] - vertices[center+0];
+                let dy1 = vertices[left+1] - vertices[center+1];
+                let dz1 = vertices[left+2] - vertices[center+2];
+                let dx2 = vertices[right+0] - vertices[center+0];
+                let dy2 = vertices[right+1] - vertices[center+1];
+                let dz2 = vertices[right+2] - vertices[center+2];
+                const n1 = norm(dx1,dy1,dz1);
+                const n2 = norm(dx2,dy2,dz2);
+                dx1 /= n1;
+                dy1 /= n1;
+                dz1 /= n1;
+                dx2 /= n2;
+                dy2 /= n2;
+                dz2 /= n2;
+
+                const x = vertices[center+0];
+                const y = vertices[center+1];
+                const z = vertices[center+2];
+                const dx = dx1+dx2;
+                const dy = dy1+dy2;
+                const dz = dz1+dz2;
                 vertices.push(x + dx*lineWidth);
                 vertices.push(y + dy*lineWidth);
                 vertices.push(z + dz*lineWidth);
@@ -169,8 +184,8 @@ class DensityMatrixGraph {
         const c2 = [0.078, 1.0, 0.784];
         //const lineColor = [0.33,0.33,0.33];
         const lineColor = [0,0,0];
-        const lineWidth = 0.002;
-        const epsilon = 0.01;
+        const lineWidth = 0.001;
+        const epsilon = 0.0001;
         for(let i = 0; i < densityMatrix.length; i++){
             const row = densityMatrix[i];
             for(let j = 0; j < row.length; j++){
