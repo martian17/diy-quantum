@@ -32,7 +32,7 @@ export class FaceDrawer extends Drawer{
         gl.enableVertexAttribArray(colorAttributeHandle);
         gl.vertexAttribPointer(
             colorAttributeHandle,
-            4, // size
+            3, // size
             gl.FLOAT, // type
             false, // normalize
             0, // stride
@@ -78,10 +78,10 @@ export class FaceDrawer extends Drawer{
         precision highp float;
 
         in vec3 vertex;
-        in vec4 color;
+        in vec3 color;
         uniform float rotation;
         out float height;
-        out vec4 color_v;
+        out vec3 color_v;
         
         mat3 roty(float theta){
             return mat3(
@@ -113,11 +113,11 @@ export class FaceDrawer extends Drawer{
         
         precision highp float;
         
-        in vec4 color_v;
+        in vec3 color_v;
         out vec4 output_color;
         
         void main(){
-            output_color = color_v;
+            output_color = vec4(color_v, 1.0);
         }
     `.trim();
 }
