@@ -1,4 +1,7 @@
 import {Drawer} from "./drawer.js";
+import {generateCube, triangulate} from "../gl-primitives/platonic.js";
+import {generateOutline} from "../gl-primitives/polygon-outline.js";
+import {mixColors} from "../gl-primitives/util.js";
 
 class Attribute{
     constructor(bufferHandle, gl){
@@ -13,7 +16,7 @@ class Attribute{
     }
 }
 
-export class InstancedElementDrawer extends Drawer{
+class InstancedElementDrawer extends Drawer{
     constructor(gl){
         super(gl);
         this.compileAndLink();
@@ -66,6 +69,7 @@ export class InstancedElementDrawer extends Drawer{
     }
     setRotation(rotation){
         const {gl} = this;
+        gl.useProgram(this.program);
         const rotationUniformHandle = gl.getUniformLocation(this.program, "rotation");
         gl.uniform1f(rotationUniformHandle, rotation);
     }
@@ -73,6 +77,7 @@ export class InstancedElementDrawer extends Drawer{
         const {gl} = this;
         gl.useProgram(this.program);
         gl.bindVertexArray(this.vao);
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.faceBufferHandle);
         gl.drawElementsInstanced(
             gl.TRIANGLES, // primitiveType,
             this.faceCount, // count,
@@ -122,8 +127,8 @@ export class InstancedElementDrawer extends Drawer{
             // transform the point based on the reference
             vec3 vertexOffset = vertex - referenceVertex.xyz;
             //vec3 translate = vec3(-0.0,0.0,-0.0);
-            vec3 translate = vec3(instanceTransform[2], 0.0, instanceTransform[3]);
-            vec3 scale = vec3(instanceTransform[0], instanceTransform[1], instanceTransform[0]);
+            vec3 translate = vec3(instanceTransform[2], -1.0, instanceTransform[3]);
+            vec3 scale = vec3(instanceTransform[0], instanceTransform[1] * 2.0, instanceTransform[0]);
             vec3 instancedVertex = (referenceVertex.xyz * scale + translate) + vertexOffset;
 
 
@@ -131,7 +136,7 @@ export class InstancedElementDrawer extends Drawer{
             // roration -> view angle adjustment
             mat3 R = rotx(0.5) * roty(rotation); 
             vec3 position = R * (instancedVertex);
-            gl_Position = vec4(position.x, position.y, position.z / 10.0, 1.5);
+            gl_Position = vec4(position.x, position.y, position.z / 10.0, 1.6);
 
             float isEdge = referenceVertex[3];
             color_v = mix(
@@ -153,4 +158,83 @@ export class InstancedElementDrawer extends Drawer{
             output_color = vec4(color_v, 1.0);
         }
     `.trim();
+}
+
+
+export class CubeGridDrawer extends InstancedElementDrawer{
+    constructor(gl){
+        super(gl);
+    }
+    _withOutline = true;
+    lineWidth = 0.003;
+    set withOutline(withOutline){
+        this._withOutline = withOutline;
+        this.uploadDensityMatrix(this.densityMatrix);
+    }
+    get withOutline(){
+        return this._withOutline;
+    }
+    uploadDensityMatrix(densityMatrix){
+        this.densityMatrix = densityMatrix;
+        const {vertices, faces} = generateCube();
+        let {vertices: outlineVertices, faces: outlineFaces, referenceVertices} = generateOutline({
+            vertices,
+            faces,
+            lineWidth: this.lineWidth,
+            generateReference: true,
+        });
+        if(!this.withOutline){
+            outlineVertices = [];
+            outlineFaces = [];
+            referenceVertices = [];
+        }
+        // prepare vertex, referenceVertex, 
+        this.vertexAttribute.upload(new Float32Array(
+            vertices.concat(outlineVertices).flat()
+        ));
+        this.referenceVertexAttribute.upload(new Float32Array(
+            vertices.map(v=>[...v,0]).concat(referenceVertices.map(v=>[...v,1])).flat()
+        ));
+        this.uploadFaceBuffer(new Uint16Array(
+            // offset the outline face indices
+            triangulate(faces.concat(outlineFaces.map(face=>face.map(idx=>idx+vertices.length)))).flat()
+        ))
+
+        // now upload instances
+        const instanceTransform = [];
+        const instanceColorTop = [];
+        const instanceColorBottom = [];
+        // use https://ohmycolor.app/color-picker/
+        const c0 = [0.890, 0.267, 0.0];
+        const c1 = [1.0, 0.933, 0.0];
+        const c2 = [0.078, 1.0, 0.784];
+        const scaleXZ = 2/densityMatrix.length * 0.8;
+        for(let i = 0; i < densityMatrix.length; i++){
+            const row = densityMatrix[i];
+            for(let j = 0; j < row.length; j++){
+                const value = row[j];
+                const modulus = Math.sqrt(value.r ** 2 + value.i ** 2);
+                //const phase = (Math.atan2(value.i, value.r) + Math.PI*2)%(Math.PI*2);
+                const phase = Math.atan2(value.i, value.r);
+
+                const scaleY = modulus;
+                const translateX = ((j + 0.1)/densityMatrix.length - 0.5) * 2;
+                const translateZ = ((i + 0.1)/densityMatrix.length - 0.5) * 2;
+                const colorTop = mixColors(c0, mixColors(c1, c2, phase), modulus);
+                const colorBottom = mixColors(c0, mixColors(c1, c2, phase), 0);
+                instanceTransform.push([scaleXZ, scaleY, translateX, translateZ]);
+                instanceColorTop.push(colorTop);
+                instanceColorBottom.push(colorBottom);
+            }
+        }
+        this.instanceTransformAttribute.upload(new Float32Array(
+            instanceTransform.flat()
+        ));
+        this.instanceColorTopAttribute.upload(new Float32Array(
+            instanceColorTop.flat()
+        ));
+        this.instanceColorBottomAttribute.upload(new Float32Array(
+            instanceColorBottom.flat()
+        ));
+    }
 }
