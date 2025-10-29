@@ -161,6 +161,26 @@ class InstancedElementDrawer extends Drawer{
 }
 
 
+export const phaseToColor = function(phase){
+    phase = (phase + Math.PI*2)%(Math.PI*2);
+    let p = phase/(Math.PI*2);
+    const orange = [1.0, 0.5, 0.0];
+    const red = [1.0, 0.471, 0.471];
+    const blue = [0, 0.78, 1]//[0.078, 1.0, 0.784];
+    const cyan = [0.412, 0.761, 0.514];//[0.471, 1.0, 0.824];
+    const r = (p*4)%1;
+    console.log(p)
+    if(p < 0.25){
+        return mixColors(orange, red, r);
+    }else if(p < 0.5){
+        return mixColors(red, blue, r);
+    }else if(p < 0.75){
+        return mixColors(blue, cyan, r);
+    }else{
+        return mixColors(cyan, orange, r);
+    }
+}
+
 export class CubeGridDrawer extends InstancedElementDrawer{
     constructor(gl){
         super(gl);
@@ -220,6 +240,8 @@ export class CubeGridDrawer extends InstancedElementDrawer{
                 const scaleY = modulus;
                 const translateX = ((j + 0.1)/densityMatrix.length - 0.5) * 2;
                 const translateZ = ((i + 0.1)/densityMatrix.length - 0.5) * 2;
+                // const colorBottom = mixColors(c0, c1, modulus);
+                // const colorTop = phaseToColor(phase)//mixColors(c0, mixColors(c1, c2, phase), modulus);
                 const colorTop = mixColors(c0, mixColors(c1, c2, phase), modulus);
                 const colorBottom = mixColors(c0, mixColors(c1, c2, phase), 0);
                 instanceTransform.push([scaleXZ, scaleY, translateX, translateZ]);
