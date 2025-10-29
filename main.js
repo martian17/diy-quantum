@@ -1,7 +1,7 @@
 import {outerProduct, outerSquare, embedGate, composeCircuit, gates, printMatrix, printStateVector, nullStateVector, C, mul_matvec, createRandomState} from "./quantum.js";
-import {FaceDrawer} from "./gl-pipeline/face.js";
-import {outlinedCube} from "./gl-primitives/outlined-cube.js";
-import {appendVFC} from "./gl-primitives/util.js";
+import {InstancedElementDrawer} from "./gl-pipeline/instanced-cubes.js";
+import {generateCube, triangulate} from "./gl-primitives/platonic.js";
+import {generateOutline} from "./gl-primitives/polygon-outline.js";
 
 const mixValue = function(v1, v2, r){
     return v1 + (v2 - v1) * r;
@@ -27,8 +27,7 @@ class DensityMatrixGraph {
         this.canvas2d = document.createElement("canvas");
         this.ctx = this.canvas2d.getContext("2d");
 
-        this.faceDrawer = new FaceDrawer(this.gl);
-        
+        this.instanceDrawer = new InstancedElementDrawer(this.gl);
     }
     setCube(
         verticesRef, colorsRef, facesRef, phase,
@@ -53,16 +52,36 @@ class DensityMatrixGraph {
         }
     }
     updateGraph(densityMatrix){
-        const vfc = {
-            vertices: [],
-            colors: [],
-            faces: [],
-        };
+        const lineWidth = 0.001;
+        const {vertices, faces} = generateCube();
+        const {vertices: outlineVertices, faces: outlineFaces, referenceVertices} = generateOutline({
+            vertices,
+            faces,
+            lineWidth,
+            generateReference: true,
+        });
+        // prepare vertex, referenceVertex, 
+        this.instanceDrawer.vertexAttribute.upload(new Float32Array(
+            vertices.concat(outlineVertices).flat()
+        ));
+        this.instanceDrawer.referenceVertexAttribute.upload(new Float32Array(
+            vertices.map(v=>[...v,0]).concat(referenceVertices.map(v=>[...v,1])).flat()
+        ));
+        this.instanceDrawer.uploadFaceBuffer(new Uint16Array(
+            // offset the outline face indices
+            triangulate(faces.concat(outlineFaces.map(face=>face.map(idx=>idx+vertices.length)))).flat()
+        ))
+
+        // now upload instances
+        const instanceTransform = [];
+        const instanceColorTop = [];
+        const instanceColorBottom = [];
         // use https://ohmycolor.app/color-picker/
         const c0 = [0.890, 0.267, 0.0];
         const c1 = [1.0, 0.933, 0.0];
         const c2 = [0.078, 1.0, 0.784];
-        const lineWidth = 0.001;
+        const scaleXZ = 2/densityMatrix.length * 0.8;
+        outer:
         for(let i = 0; i < densityMatrix.length; i++){
             const row = densityMatrix[i];
             for(let j = 0; j < row.length; j++){
@@ -71,27 +90,29 @@ class DensityMatrixGraph {
                 const modulus = Math.sqrt(value.r ** 2 + value.i ** 2);
                 //const phase = (Math.atan2(value.i, value.r) + Math.PI*2)%(Math.PI*2);
                 const phase = Math.atan2(value.i, value.r);
-                const x0 = ((j + 0.1) / row.length-0.5)*2;
-                const x1 = ((j + 0.9) / row.length-0.5)*2;
-                const z0 = ((i + 0.1) / densityMatrix.length-0.5)*2;
-                const z1 = ((i + 0.9) / densityMatrix.length-0.5)*2;
-                const y0 = 0;
-                const y1 = modulus;
-                appendVFC(vfc, outlinedCube(
-                    x0,y0,z0,
-                    x1,y1,z1,
-                    mixColors(c0, mixColors(c1, c2, phase), y0),
-                    mixColors(c0, mixColors(c1, c2, phase), y1),
-                    lineWidth
-                ));
+
+                const scaleY = modulus;
+                const translateX = ((j + 0.1)/densityMatrix.length - 0.5) * 2;
+                const translateZ = ((i + 0.1)/densityMatrix.length - 0.5) * 2;
+                const colorTop = mixColors(c0, mixColors(c1, c2, phase), modulus);
+                const colorBottom = mixColors(c0, mixColors(c1, c2, phase), 0);
+                instanceTransform.push([scaleXZ, scaleY, translateX, translateZ]);
+                instanceColorTop.push(colorTop);
+                instanceColorBottom.push(colorBottom);
             }
         }
-        this.faceDrawer.uploadVertexBuffer(new Float32Array(vfc.vertices));
-        this.faceDrawer.uploadColorBuffer(new Float32Array(vfc.colors));
-        this.faceDrawer.uploadFaceBuffer(new Uint16Array(vfc.faces));
+        this.instanceDrawer.instanceTransformAttribute.upload(new Float32Array(
+            instanceTransform.flat()
+        ));
+        this.instanceDrawer.instanceColorTopAttribute.upload(new Float32Array(
+            instanceColorTop.flat()
+        ));
+        this.instanceDrawer.instanceColorBottomAttribute.upload(new Float32Array(
+            instanceColorBottom.flat()
+        ));
     }
     setRotation(rotation){
-        this.faceDrawer.setRotation(rotation);
+        this.instanceDrawer.setRotation(rotation);
     }
     render(){
         const gl = this.gl;
@@ -101,8 +122,7 @@ class DensityMatrixGraph {
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-        this.faceDrawer.draw();
-
+        this.instanceDrawer.draw();
     }
 }
 
