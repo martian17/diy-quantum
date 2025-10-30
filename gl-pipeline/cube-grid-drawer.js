@@ -141,7 +141,7 @@ class InstancedElementDrawer extends Drawer{
             float isEdge = referenceVertex[3];
             color_v = mix(
                 mix(instanceColorBottom, instanceColorTop, referenceVertex.y),
-                vec3(0.0, 0.0, 0.0),
+                vec3(0.3, 0.3, 0.3),
                 isEdge
             );
         }
