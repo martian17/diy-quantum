@@ -1,3 +1,20 @@
+const options = {
+    stdout: (()=>{
+        if(typeof process !== "undefined")return process.stdout;
+        return {
+            write: function(content){
+                if(content.at(-1) === "\n")content = content.slice(0,-1);
+                console.log(content);
+            }
+        }
+    })()
+}
+
+export const config = {
+    options,
+    stdout: options.stdout,
+};
+
 const transpose = function(matrix){
     const result = [];
     for(let i = 0; i < matrix[0].length; i++){
@@ -137,7 +154,7 @@ export const printMatrix = function(matrix){
         }
         res += " |\n";
     }
-    console.log(res);
+    config.stdout.write(res + "\n");
 };
 
 const columnsToString = function(...args){
@@ -190,14 +207,14 @@ export const printStateVector = function(vector){
     const dim = Math.round(Math.log(vector.length)/Math.log(2))
     const tag_texts = state.map((_,i)=>`|${i.toString(2).padStart(dim,"0")}>`)
 
-    console.log(columnsToString(
+    config.stdout.write(columnsToString(
         ["", ...tag_texts, "sum"],
         " | ",
         ["states", ...state_texts, state.reduce((a,b)=>a.add(b)).toString()],
         " | ",
         ["probability", ...probability_texts, roundFloat(probability.reduce((a,b)=>a+b))],
         " |",
-    ));
+    ) + "\n");
 }
 
 export const mul_matvec = function(mat, vec){

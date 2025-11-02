@@ -9,3 +9,15 @@ body{
     flex-direction: row;
     justify-content: space-around;
 }
+
+.ansi{
+    background-color: #2a2a2a;
+    color: #ffffff;
+    padding: 1em;
+    border-radius: 0.5em;
+}
+
+.ansi>pre{
+    margin: 0px;
+    min-height: 1em;
+}
