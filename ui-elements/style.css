@@ -1,6 +1,9 @@
 body{
     background: linear-gradient(41deg, #3b506b, #dd6b6b);
     min-height: 100vh;
+    color: #fff;
+    font-family: courier;
+    padding: 2em;
 }
 
 

@@ -1,8 +1,12 @@
-export const applyStyle = function(elem, style){
-    for(let key in style){
-        elem.style[key] = style[key];
+export const applyStyle = function(...args){
+    const style = args.pop();
+    const elems = args;
+    for(let elem of elems){
+        for(let key in style){
+            elem.style[key] = style[key];
+        }
     }
-    return elem;
+    return elems[0];
 }
 
 class AnsiLine{
@@ -74,6 +78,13 @@ export class AnsiDisplay{
         Reset:     "\u001b[0m",
     }
     constructor(style = {}){
+        style = {
+            overflowY: "scroll",
+            overflowX: "scroll",
+            scrollbarColor: "#ffffff #00000000",
+            scrollbarWidth: "thin",
+            ...style
+        }
         const wrapper = document.createElement("div");
         for(let key in style){
             wrapper.style[key] = style[key];
@@ -104,7 +115,7 @@ export class AnsiDisplay{
 
 class StringMatrix{
     static fromString(str){
-        const lines = str.trim().split("\n");
+        const lines = str.split("\n");
         return this.fromLines(lines);
     }
     static fromLines(lines){
@@ -134,7 +145,7 @@ class StringMatrix{
     get(x,y){
         if(x < 0) x = this.width  + x;
         if(y < 0) y = this.height + y;
-        return this.lines[y][x];
+        return this.lines[y][x] || " ";
     }
     slice(...args){//[x0,y0,x1,y1]
         for(let i = 0; i < args.length; i++){
@@ -183,22 +194,48 @@ export class StringTable extends StringMatrix{
         }
         return indices;
     }
+    trim(){
+        let x0,y0,x1,y1;
+        outer:
+        for(let y = 0; y < this.height; y++){
+            for(let x = 0; x < this.width; x++){
+                if(this.get(x,y) !== " "){
+                    x0 = x;
+                    y0 = y;
+                    break outer;
+                }
+            }
+        }
+        outer:
+        for(let y = this.height-1; y >= 0; y--){
+            for(let x = this.width-1; x >= 0; x--){
+                if(this.get(x,y) !== " "){
+                    x1 = x+1;
+                    y1 = y+1;
+                    break outer;
+                }
+            }
+        }
+        return this.slice(x0,y0,x1,y1);
+    }
 }
 
 export class FlexLayout{
-    constructor(layout){
-        let matrix = StringTable.fromString(layout);
+    constructor(baseElement, layout){
+        if(!layout){
+            layout = baseElement;
+            baseElement = undefined;
+        }
+        let matrix = StringTable.fromString(layout).trim();
         if([[0,0],[0,-1],[-1,0],[-1,-1]].map(c=>matrix.get(...c)).join("") !== "++++"){
             throw new Error("Error parsing flex layout: it must be enclosed in 4 x's");
         }
-        console.log(matrix);
         matrix = matrix.slice(1,1,-1,-1);
-        console.log(matrix);
         let root;
         if(matrix.getHorizontalLineIndices().length > 0){
-            root = this.processColumn(matrix);
+            root = this.processColumn(matrix, baseElement);
         }else{
-            root = this.processRow(matrix);
+            root = this.processRow(matrix, baseElement);
         }
         this.root = root;
         this.element = root.element || root;
@@ -208,20 +245,19 @@ export class FlexLayout{
         justifyContent: "space-around",
         flex: "1",
     };
-    processLeaf(matrix){
+    processLeaf(matrix, baseElement){
         const name = matrix.lines.map(v=>v.trim()).filter(v=>v!=="")[0] || "";
-        const container = document.createElement("div");
+        const container = baseElement || document.createElement("div");
         if(name !== ""){
             this[name] = container;
         }
         return container;
     }
-    processColumn(matrix){
+    processColumn(matrix, baseElement){
         const indices = matrix.getHorizontalLineIndices();
-        if(indices.length === 0)return this.processLeaf(matrix)
-        console.log(matrix);
+        if(indices.length === 0)return this.processLeaf(matrix, baseElement)
         indices.push(matrix.height);
-        const parent = document.createElement("div");
+        const parent = baseElement || document.createElement("div");
         applyStyle(parent, { ...this.containerStyle, flexDirection: "column" });
         const children = [];
         let start = 0;
@@ -239,12 +275,11 @@ export class FlexLayout{
         children.element = parent;
         return children;
     }
-    processRow(matrix){
+    processRow(matrix, baseElement){
         const indices = matrix.getVerticalLineIndices();
-        if(indices.length === 0)return this.processLeaf(matrix)
-        console.log(matrix);
+        if(indices.length === 0)return this.processLeaf(matrix, baseElement)
         indices.push(matrix.width);
-        const parent = document.createElement("div");
+        const parent = baseElement || document.createElement("div");
         applyStyle(parent, { ...this.containerStyle, flexDirection: "row" });
         if(indices.length === 1){
             const name = matrix.lines.map(v=>v.trim()).filter(v=>v!=="")[0] || "";

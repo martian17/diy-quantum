@@ -691,7 +691,7 @@ export const composeCircuit = function(...args){
     return mul_mats(...args.reverse());
 }
 
-const rep = function(n,v=0){
+export const rep = function(n,v=0){
     const arr = [];
     for(let i = 0; i < n; i++){
         arr.push(v);

@@ -1,7 +1,6 @@
-import {Drawer} from "./drawer.js";
-import {generateCube, triangulate} from "../gl-primitives/platonic.js";
-import {generateOutline} from "../gl-primitives/polygon-outline.js";
-import {mixColors} from "../gl-primitives/util.js";
+import {Drawer} from "../lib/drawer.js";
+import {generateCube} from "../lib/platonic.js";
+import {mixColors, triangulate, generateOutline} from "../lib/util.js";
 
 class Attribute{
     constructor(bufferHandle, gl){
@@ -30,7 +29,7 @@ class InstancedElementDrawer extends Drawer{
         this.vertexAttribute = this.setupAttribute("vertex");
         // [referenceX, referenceY, referenceZ, isEdge]
         this.referenceVertexAttribute = this.setupAttribute("referenceVertex", {size: 4});
-        // for faces, not attribute setup is necessary
+        // fhmm, 20or faces, not attribute setup is necessary
         this.faceBufferHandle = gl.createBuffer(); 
 
         // instance specific attributes

@@ -1,96 +1,115 @@
-import {config, outerProduct, outerSquare, embedGate, composeCircuit, gates, printMatrix, printStateVector, nullStateVector, C, mul_matvec, createRandomState} from "./quantum.js";
-import {DensityMatrixGraph} from "./density-matrix-graph.js";
-import {FlexLayout, AnsiDisplay} from "./ui-elements.js";
+import {FlexLayout, applyStyle} from "./ui-elements/index.js";
 
+const origin = window.location.origin;
+const experiment = (new URL(window.location.href)).searchParams.get("experiment");
 
-const layout = new FlexLayout(`
-+-----------------------------+
-|d1            |d2            |
-|              |              |
-|              |              |
-|-----------------------------|
-|code                         |
-|                             |
-|                             |
-+-----------------------------+
-`);
-
-document.body.appendChild(layout.root.element);
-
-// |-----------------------------|
-// |d1     |      |d2            |
-// |--------------|--------------|
-// |              |              |
-// |-----------------------------|
-// |code                         |
-// |                             |
-// |                             |
-// |-----------------------------|
-
-
-
-const graph1 = new DensityMatrixGraph();
-layout.d1.appendChild(graph1.canvas);
-
-const graph2 = new DensityMatrixGraph();
-layout.d2.appendChild(graph2.canvas);
-
-const ansi = new AnsiDisplay({
-    height: "300px",
-    overflowY: "scroll",
-    overflowX: "hidden",
-    scrollbarColor: "#ffffff #00000000",
-    scrollbarWidth: "thin",
-});
-layout.code.appendChild(ansi.element)
-config.stdout = ansi;
-
-
-// erst bereitet man Density Matrix vor
-
-const entangler = composeCircuit(
-    embedGate(
-        gates.H,
-        [0,-1]
-    ),
-    gates.CNOT
-);
-
-const state = mul_matvec(
-    entangler,
-    nullStateVector(2).with(0,C(1,0))
-);
-
-const state1 = createRandomState(2);
-ansi.log("state1:");
-printStateVector(state1);
-ansi.log("density matrix 1:");
-printMatrix(outerSquare(state1));
-const state2 = createRandomState(2);
-ansi.log("\n\nstate2:");
-printStateVector(state2);
-ansi.log("density matrix 2:");
-printMatrix(outerSquare(state2));
-
-graph1.updateGraph(outerSquare(state1));
-graph2.updateGraph(outerSquare(state2));
-
-//for(let i = 0; i < 1234; i++){
-//    ansi.write(`Hello world ${i}\n`);
-//}
-
-let animateStart = 0;
-let rotation = 0.5;
-const animate = function(t){
-    if(animateStart === 0)
-        animateStart = t;
-    const dt = t - animateStart;
-    animateStart = t;
-    rotation += dt/10000;
-    graph1.setRotation(rotation);
-    graph1.render();
-    graph2.setRotation(rotation);
-    graph2.render();
-    requestAnimationFrame(animate);
+if(!experiment){
+    // load the top page
+    const rootLayout = new FlexLayout(`
+    +----------------------+
+    |welcome               |
+    |----------------------|
+    |experimentList        |
+    |----------------------|
+    |docs                  |
+    |                      |
+    |                      |
+    +----------------------+
+    `);
+    document.body.appendChild(rootLayout.root.element);
+    
+    
+    // Origin section
+    (async ()=>{
+        const {welcome} = rootLayout;
+        const packageJson = await fetch(`${origin}/package.json`, { cache: "no-cache" }).then(v=>v.json());
+        welcome.innerHTML = `
+        <H1>Welcome to ${packageJson.name} v${packageJson.version}</H1>
+        <span>
+            Supported servers: http-server, github pages
+        </span>
+        `;
+        applyStyle(welcome, {
+            paddingBottom: "2em"
+        });
+    })();
+    
+    // Experiment list section
+    const getExperimentFiles = async function(){
+        if(origin.match("localhost")){
+            const index = await fetch("http://localhost:8080/experiments/", { cache: "no-cache" }).then(v=>v.text());
+            return index.match(/<a href=".*"/g).slice(1,-1).map(v=>v.match(/".*"/)[0].slice(3,-1));
+        }else if(origin.match(".github.io")){
+            const username = window.location.host.split(".")[0];
+            const reponame = window.location.pathname.split("/").filter(v=>v!=="")[0];
+            return await fetch(`https://api.github.com/repos/${username}/${reponame}/contents/experiments/`, { cache: "no-cache" }).then(v=>v.json()).then(l=>l.map(v=>v.name));
+        }else{
+            const errorMsg = `Unsupported origin ${origin}, please use http-server with localhost if running locally, and github pages if under deployment`;
+            alert(errorMsg);
+            throw new Error(errorMsg);
+        }
+    }
+    
+    const experimentListRoot = new FlexLayout(rootLayout.experimentList, `
+    +--------------------------------+
+    |title       | reload | collapse |
+    |--------------------------------|
+    |list                            |
+    +--------------------------------+
+    `);
+    applyStyle(rootLayout.experimentList, {
+        padding: "1em",
+        backgroundColor: "#444",
+        borderRadius: "0.5em",
+    });
+    (async ()=>{
+        const {title, reload, collapse, list} = experimentListRoot;
+        applyStyle(title, reload, collapse, {
+            fontSize: "1.5em",
+            flex: "1",
+            fontWeight: "900",
+        });
+        applyStyle(reload, collapse, {
+            flex: "0",
+        });
+        applyStyle(list, {
+            overflow: "hidden",
+        });
+        title.innerHTML = "Experiments";
+        reload.innerHTML = "🔄";
+        collapse.innerHTML = "V"
+        const reloadFunc = async function(){
+            const files = await getExperimentFiles();
+            list.innerHTML = "";
+            const baseUrl = window.location.origin + window.location.pathname;
+            for(let file of files){
+                const a = document.createElement("a");
+                a.innerHTML = file;
+                a.href = `${baseUrl}?experiment=${file}`;
+                list.appendChild(a);
+                applyStyle(a, {
+                    color: "#fff",
+                    display: "block",
+                });
+            }
+        }
+        reloadFunc();
+        reload.addEventListener("click", reloadFunc);
+        let collapsed = false;
+        collapse.addEventListener("click", ()=>{
+            collapsed = !collapsed;
+            if(collapsed){
+                collapse.innerHTML = ">";
+                list.style.height = "0px";
+            }else{
+                collapse.innerHTML = "V";
+                list.style.height = "";
+            }
+        });
+    })();
+}else{
+    // load the experiment
+    const module = await import(`./experiments/${experiment}?t=${Date.now()}`);
+    module.init(document.body);
 }
-animate(0);
+

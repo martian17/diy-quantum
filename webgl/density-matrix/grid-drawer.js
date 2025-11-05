@@ -1,5 +1,5 @@
-import {Drawer} from "./drawer.js";
-import {triangulate} from "../gl-primitives/platonic.js";
+import {Drawer} from "../lib/drawer.js";
+import {triangulate} from "../lib/util.js";
 
 class FaceDrawer extends Drawer{
     constructor(gl){

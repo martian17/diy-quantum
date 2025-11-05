@@ -1,3 +1,42 @@
+export const appendVFC = function(vfc1, vfc2){
+    const faceOffset = vfc1.vertices.length / 3;
+    // vertices
+    for(let i = 0; i < vfc2.vertices.length; i++){
+        vfc1.vertices.push(vfc2.vertices[i]);
+    }
+    // faces
+    for(let i = 0; i < vfc2.faces.length; i++){
+        vfc1.faces.push(faceOffset + vfc2.faces[i]);
+    }
+    // colors
+    for(let i = 0; i < vfc2.colors.length; i++){
+        vfc1.colors.push(vfc2.colors[i]);
+    }
+}
+
+const mixValue = function(v1, v2, r){
+    return v1 + (v2 - v1) * r;
+}
+
+export const mixColors = function(c1, c2, r){
+    let res = [];
+    for(let i = 0; i < c1.length; i++){
+        res.push(mixValue(c1[i], c2[i], r));
+    }
+    return res;
+}
+
+export const triangulate = function(faces){
+    const triangles = [];
+    for(let face of faces){
+        for(let i = 1; i < face.length - 1; i++){
+            triangles.push(face[0],face[i],face[i+1]);
+        }
+    }
+    return triangles;
+};
+
+
 const norm = (a,b,c)=>Math.sqrt(a**2 + b**2 + c**2);
 
 const getNormal = function(v0,v1,v2){
@@ -63,7 +102,6 @@ const dist3 = function(v0, v1){
     const dz = v0[2] - v1[2];
     return Math.sqrt(dx**2 + dy**2 + dz**2);
 }
-
 
 
 export const generateOutline = function({

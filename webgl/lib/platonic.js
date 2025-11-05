@@ -18,12 +18,3 @@ export const generateCube = function(){
     return {vertices, faces};
 };
 
-export const triangulate = function(faces){
-    const triangles = [];
-    for(let face of faces){
-        for(let i = 1; i < face.length - 1; i++){
-            triangles.push(face[0],face[i],face[i+1]);
-        }
-    }
-    return triangles;
-};

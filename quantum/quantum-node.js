@@ -323,10 +323,10 @@ const matStringify = function(mat){
 const getPauliGroup = function(){
     const isq2 = 1/Math.sqrt(2);
     const group = new Map([
-        Complex.matrix(
-            [isq2,isq2],
-            [isq2,-isq2]
-        ),
+        // Complex.matrix(
+        //     [isq2,isq2],
+        //     [isq2,-isq2]
+        // ),
         Complex.matrix(
             [0,1],
             [1,0]
@@ -856,15 +856,11 @@ const circuits = {
             [1,0]
         ),
     ),
-    QFT_4: composeCircuit(
+    QFT_2: composeCircuit(
         embedGate(
             gates.H,
             [0,-1],
         ),
-        // embedGate(
-        //     gates.CT,
-        //     [0,1],
-        // ),
         embedGate(
             gates.R1(1/4),
             [-2,0],
@@ -873,6 +869,7 @@ const circuits = {
             gates.H,
             [-1,0],
         ),
+        gates.SWAP
     ),
     QFT_8: composeCircuit(
         embedGate(
@@ -941,8 +938,8 @@ const performMeasurement = function(state, measurementMatrix){
     }
 }
 
-console.log(colors.reversed("[QFT 8x8]"));{
-    printMatrix(circuits.QFT_N(3));
+console.log(colors.reversed("[QFT 2]"));{
+    printMatrix(circuits.QFT_2);
 }
 
 
@@ -1311,3 +1308,30 @@ console.log(colors.reversed("\n[GHZ state]"));{
     printStateVector(state);
     console.log(colors.orange(termsToString(decomposeState(state,[0,1,2,3]))));
 }
+
+
+console.log(colors.orange("X:"));
+printMatrix(Complex.matrix(
+    [0,1],
+    [1,0]
+));
+console.log(colors.orange("Y:"));
+printMatrix(Complex.matrix(
+    [0,[0,-1]],
+    [[0,1],0]
+));
+console.log(colors.orange("Z:"));
+printMatrix(Complex.matrix(
+    [1,0],
+    [0,-1]
+));
+
+getPauliGroup();
+const r4 = 1/Math.sqrt(4);
+const r2 = 1/Math.sqrt(2);
+console.log(colors.orange(termsToString(decomposeState([
+    C(r4,0),
+    C(r4,0),
+    C(r4,0),
+    C(r4,0),
+],[0],[1]))));
