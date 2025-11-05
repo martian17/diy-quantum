@@ -1,5 +1,5 @@
 import {config, outerProduct, outerSquare, embedGate, composeCircuit, gates, printMatrix, printStateVector, nullStateVector, C, mul_matvec, createRandomState, rep} from "../quantum/index.js";
-import {DensityMatrixGraph} from "../webgl/density-matrix/index.js";
+import {ComplexMatrixPlot} from "../webgl/complex-matrix/index.js";
 import {FlexLayout, AnsiDisplay, applyStyle} from "../ui-elements/index.js";
 
 export const init = function(parent){
@@ -18,13 +18,13 @@ export const init = function(parent){
     parent.appendChild(layout.root.element);
     
     
-    const graph1 = new DensityMatrixGraph();
-    const graph2 = new DensityMatrixGraph();
+    const plot1 = new ComplexMatrixPlot();
+    const plot2 = new ComplexMatrixPlot();
     // styling
     {
         const {d1, d2} = layout;
-        d1.appendChild(graph1.canvas);
-        d2.appendChild(graph2.canvas);
+        d1.appendChild(plot1.canvas);
+        d2.appendChild(plot2.canvas);
 
         applyStyle(d1, d2, {
             flex: "1",
@@ -67,8 +67,8 @@ export const init = function(parent){
     ansi.log("density matrix 2:");
     printMatrix(outerSquare(state2));
     
-    graph1.updateGraph(outerSquare(state1));
-    graph2.updateGraph(outerSquare(state2));
+    plot1.updateMatrix(outerSquare(state1));
+    plot2.updateMatrix(outerSquare(state2));
     
     
     let animateStart = 0;
@@ -79,10 +79,10 @@ export const init = function(parent){
         const dt = t - animateStart;
         animateStart = t;
         rotation += dt/10000;
-        graph1.setRotation(rotation);
-        graph1.render();
-        graph2.setRotation(rotation);
-        graph2.render();
+        plot1.setRotation(rotation);
+        plot1.render();
+        plot2.setRotation(rotation);
+        plot2.render();
         requestAnimationFrame(animate);
     }
     animate(0);

@@ -1,7 +1,7 @@
 import {CubeGridDrawer} from "./cube-grid-drawer.js";
 import {GridDrawer} from     "./grid-drawer.js";
 
-export class DensityMatrixGraph {
+export class ComplexMatrixPlot {
     constructor(){
         this.canvas = document.createElement("canvas");
         this.canvas.style.width = "100%";
@@ -31,9 +31,9 @@ export class DensityMatrixGraph {
         this.cubeGridDrawer = new CubeGridDrawer(this.gl);
         this.gridDrawer = new GridDrawer(this.gl);
     }
-    updateGraph(densityMatrix){
-        this.cubeGridDrawer.uploadDensityMatrix(densityMatrix);
-        this.gridDrawer.uploadDensityMatrix(densityMatrix);
+    updateMatrix(matrix){
+        this.cubeGridDrawer.uploadMatrix(matrix);
+        this.gridDrawer.uploadMatrix(matrix);
     }
     setRotation(rotation){
         this.cubeGridDrawer.setRotation(rotation);

@@ -1,5 +1,5 @@
 import {config, outerProduct, outerSquare, embedGate, composeCircuit, gates, printMatrix, printStateVector, nullStateVector, C, mul_matvec, createRandomState, rep} from "../quantum/index.js";
-import {DensityMatrixGraph} from "../webgl/density-matrix/index.js";
+import {ComplexMatrixPlot} from "../webgl/complex-matrix/index.js";
 import {FlexLayout, AnsiDisplay, applyStyle} from "../ui-elements/index.js";
 
 export const init = function(parent){
@@ -18,15 +18,15 @@ export const init = function(parent){
     parent.appendChild(layout.root.element);
 
 
-    const graph1 = new DensityMatrixGraph();
-    const graph2 = new DensityMatrixGraph();
-    const graph3 = new DensityMatrixGraph();
+    const plot1 = new ComplexMatrixPlot();
+    const plot2 = new ComplexMatrixPlot();
+    const plot3 = new ComplexMatrixPlot();
     // styling
     {
         const {d1, d2, d3} = layout;
-        d1.appendChild(graph1.canvas);
-        d2.appendChild(graph2.canvas);
-        d3.appendChild(graph3.canvas);
+        d1.appendChild(plot1.canvas);
+        d2.appendChild(plot2.canvas);
+        d3.appendChild(plot3.canvas);
 
         applyStyle(d1, d2, d3, {
             flex: "1",
@@ -67,13 +67,13 @@ export const init = function(parent){
     };
     
     
-    graph1.updateGraph(QFT_N(2));
+    plot1.updateMatrix(QFT_N(2));
     ansi.log("2 qubits");
     printMatrix(QFT_N(2));
-    graph2.updateGraph(QFT_N(3));
+    plot2.updateMatrix(QFT_N(3));
     ansi.log("3 qubits");
     printMatrix(QFT_N(3));
-    graph3.updateGraph(QFT_N(4));
+    plot3.updateMatrix(QFT_N(4));
     ansi.log("4 qubits");
     printMatrix(QFT_N(4));
 
@@ -86,12 +86,12 @@ export const init = function(parent){
         const dt = t - animateStart;
         animateStart = t;
         rotation += dt/10000;
-        graph1.setRotation(rotation);
-        graph1.render();
-        graph2.setRotation(rotation);
-        graph2.render();
-        graph3.setRotation(rotation);
-        graph3.render();
+        plot1.setRotation(rotation);
+        plot1.render();
+        plot2.setRotation(rotation);
+        plot2.render();
+        plot3.setRotation(rotation);
+        plot3.render();
         requestAnimationFrame(animate);
     }
     animate(0);
