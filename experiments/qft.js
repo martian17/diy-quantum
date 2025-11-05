@@ -31,6 +31,7 @@ export const init = function(parent){
         applyStyle(d1, d2, d3, {
             flex: "1",
             aspectRatio: "1 / 1",
+            maxWidth:"50vh",
         });
     }
     
@@ -90,14 +91,13 @@ export const init = function(parent){
         const dt = t - animateStart;
         animateStart = t;
         rotation += dt/10000;
-        plot1.setRotation(rotation);
-        plot1.render();
         plot2.setRotation(rotation);
         plot2.render();
-        plot3.setRotation(rotation);
-        plot3.render();
         requestAnimationFrame(animate);
     }
+    plot1.render();
+    plot2.render();
+    plot3.render();
     animate(0);
 }
 
