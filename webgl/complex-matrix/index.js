@@ -2,7 +2,8 @@ import {CubeGridDrawer} from "./cube-grid-drawer.js";
 import {GridDrawer} from     "./grid-drawer.js";
 
 export class ComplexMatrixPlot {
-    constructor(){
+    constructor({grid = true} = {}){
+        this.displayGrid = grid;
         this.canvas = document.createElement("canvas");
         this.canvas.style.width = "100%";
         this.canvas.style.height = "100%";
@@ -15,8 +16,6 @@ export class ComplexMatrixPlot {
         });
         ro.observe(this.canvas);
 
-        // this.canvas.width = 500;
-        // this.canvas.height = 500;
         const gl = this.gl = this.canvas.getContext("webgl2", {antialias: true, premultipliedAlpha: true, depth: true});
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LEQUAL);
@@ -48,6 +47,6 @@ export class ComplexMatrixPlot {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
         this.cubeGridDrawer.draw();
-        this.gridDrawer.draw();
+        if(this.displayGrid)this.gridDrawer.draw();
     }
 }

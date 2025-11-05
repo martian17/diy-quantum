@@ -18,9 +18,9 @@ export const init = function(parent){
     parent.appendChild(layout.root.element);
 
 
-    const plot1 = new ComplexMatrixPlot();
+    const plot1 = new ComplexMatrixPlot({grid: false});
     const plot2 = new ComplexMatrixPlot();
-    const plot3 = new ComplexMatrixPlot();
+    const plot3 = new ComplexMatrixPlot({grid: false});
     // styling
     {
         const {d1, d2, d3} = layout;
@@ -66,16 +66,20 @@ export const init = function(parent){
         return composeCircuit(...circuit);
     };
     
+    const isq2 = 1/Math.sqrt(2);
+    const qft3 = QFT_N(3);
+    const vec0 = nullStateVector(3).with(0,C(isq2,0)).with(7,C(0,isq2));
+    const vec1 = mul_matvec(qft3, vec0);
     
-    plot1.updateMatrix(QFT_N(2));
-    ansi.log("2 qubits");
-    printMatrix(QFT_N(2));
-    plot2.updateMatrix(QFT_N(3));
-    ansi.log("3 qubits");
-    printMatrix(QFT_N(3));
-    plot3.updateMatrix(QFT_N(4));
-    ansi.log("4 qubits");
-    printMatrix(QFT_N(4));
+    plot1.updateMatrix([vec0]);
+    ansi.log("State Before");
+    printStateVector(vec0);
+    plot2.updateMatrix(qft3);
+    ansi.log("\n3 qubits QFT");
+    printMatrix(qft3);
+    plot3.updateMatrix([vec1]);
+    ansi.log("State After");
+    printStateVector(vec1);
 
 
     let animateStart = 0;

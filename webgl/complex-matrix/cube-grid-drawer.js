@@ -59,7 +59,7 @@ export class CubeGridDrawer extends InstancedElementDrawer{
         this.uploadFaceBuffer(new Uint16Array(
             // offset the outline face indices
             triangulate(faces.concat(outlineFaces.map(face=>face.map(idx=>idx+vertices.length)))).flat()
-        ))
+        ));
 
         // now upload instances
         const instanceTransform = [];
@@ -69,18 +69,22 @@ export class CubeGridDrawer extends InstancedElementDrawer{
         const c0 = [0.890, 0.267, 0.0];
         const c1 = [1.0, 0.933, 0.0];
         const c2 = [0.078, 1.0, 0.784];
-        const scaleXZ = 2/matrix.length * 0.8;
-        for(let i = 0; i < matrix.length; i++){
-            const row = matrix[i];
-            for(let j = 0; j < row.length; j++){
-                const value = row[j];
+        
+        const width = matrix[0].length;
+        const height = matrix.length;
+        const size = Math.max(width, height);
+        const scaleXZ = 2/size * 0.8;
+        for(let y = 0; y < height; y++){
+            const row = matrix[y];
+            for(let x = 0; x < width; x++){
+                const value = row[x];
                 const modulus = Math.sqrt(value.r ** 2 + value.i ** 2);
                 //const phase = (Math.atan2(value.i, value.r) + Math.PI*2)%(Math.PI*2);
                 const phase = Math.atan2(value.i, value.r);
 
                 const scaleY = modulus;
-                const translateX = ((j + 0.1)/matrix.length - 0.5) * 2;
-                const translateZ = ((i + 0.1)/matrix.length - 0.5) * 2;
+                const translateX = ((x - width/2 + 0.1)/size) * 2;
+                const translateZ = ((y - height/2 + 0.1)/size) * 2;
                 // const colorBottom = mixColors(c0, c1, modulus);
                 // const colorTop = phaseToColor(phase)//mixColors(c0, mixColors(c1, c2, phase), modulus);
                 const colorTop = mixColors(c0, mixColors(c1, c2, phase), modulus);

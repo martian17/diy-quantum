@@ -8,7 +8,7 @@ export class GridDrawer extends IndexedFaceDrawer{
     }
     lineWidth = 0.005;
     uploadMatrix(matrix){
-        const size = matrix.length;
+        const size = Math.max(matrix.length, matrix[0].length);
         const vertices = [];
         const faces = [];
         for(let i = 0; i < size + 1; i++){
