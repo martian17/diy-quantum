@@ -2,6 +2,7 @@ import {FlexLayout, applyStyle} from "./ui-elements/index.js";
 
 const origin = window.location.origin;
 const experiment = (new URL(window.location.href)).searchParams.get("experiment");
+const baseUrl = origin + window.location.pathname;
 
 if(!experiment){
     // load the top page
@@ -22,7 +23,7 @@ if(!experiment){
     // Origin section
     (async ()=>{
         const {welcome} = rootLayout;
-        const packageJson = await fetch(`${origin}/package.json`, { cache: "no-cache" }).then(v=>v.json());
+        const packageJson = await fetch(`${baseUrl}package.json`, { cache: "no-cache" }).then(v=>v.json());
         welcome.innerHTML = `
         <H1>Welcome to ${packageJson.name} v${packageJson.version}</H1>
         <span>
@@ -81,7 +82,6 @@ if(!experiment){
         const reloadFunc = async function(){
             const files = await getExperimentFiles();
             list.innerHTML = "";
-            const baseUrl = window.location.origin + window.location.pathname;
             for(let file of files){
                 const a = document.createElement("a");
                 a.innerHTML = file;
