@@ -1,4 +1,4 @@
-import {describe, test, expect, overrideEqual, beforeEach} from "./base.test.js";
+import {describe, test, expect, overrideEqual, overrideTolerance, beforeEach} from "./base.test.js";
 import {Complex, C, ComplexVector, ComplexMatrix} from "./complex.js";
 
 const V = function(...values){
@@ -37,13 +37,13 @@ const randM = function(rows, columns){
     return res;
 }
 
-overrideEqual((a, b, defaultEqual)=>{
+overrideEqual((a, b, defaultEqual, atol, rtol)=>{
     if(
         a instanceof Complex ||
         a instanceof ComplexVector ||
         a instanceof ComplexMatrix
     ){
-        return a.equal(b);
+        return a.equal(b, atol, rtol);
     }else{
         return defaultEqual(a, b)
     }
@@ -113,150 +113,85 @@ describe("Complex", ()=>{
 describe("ComplexVector", ()=>{
     let a;
     let b;
+    let half;
+    let c;
     beforeEach(()=>{
         a = randV(20);
         b = randV(20);
+        half = randV(10);
+        c = randC();
+    });
+
+    overrideTolerance({
+        atol: 1e-5,
+        rtol: 1e-8,
     });
     
-    test("equal and clone", ()=>{
+    test("equal and calone", ()=>{
         expect(a.equal(b)).toBe(false);
         expect(a.equal(a)).toBe(true);
         expect(a.clone()).not.toBe(a);
         expect(a.clone().equal(a)).toBe(true);
     });
-    test("additive inverse test", ()=>{
-        expect(a.add(b)).not.toEqual(a);
-        expect(a.add(b).sub(b)).toEqual(a);
-    });
-    test("multiplicative inverse test", ()=>{
-        expect(a.mul(b)).not.toEqual(a);
-        expect(a.mul(b).div(b)).toEqual(a);
-    });
-    test("invert", ()=>{
-        expect(a.invert()).not.toEqual(a);
-        expect(a.invert().invert()).toEqual(a);
-        expect(a.mul(b).mul(b.invert())).toEqual(a);
-    });
-    test("conjugate (component wise test)", ()=>{
+    const testIdentity = function(op1, arg1, op2, arg2, testName){
+        test(testName, eval(`()=>{
+            expect(a.${op1}(${arg1})).not.toEqual(a);
+            expect(a.${op1}(${arg1}).${op2}(${arg2})).toEqual(a);
+        }`));
+        test(testName + " (immediate)", eval(`()=>{
+            expect(a.clone().${op1}i(${arg1})).not.toEqual(a);
+            expect(a.clone().${op1}i(${arg1}).${op2}i(${arg2})).toEqual(a);
+            expect(a.${op1}i(${arg1})).toBe(a);
+        }`));
+    }
+    // example of an identity test
+    // test("additive inverse", ()=>{
+    //     expect(a.add(b)).not.toEqual(a);
+    //     expect(a.add(b).sub(b)).toEqual(a);
+    // });
+    // test("immediate: additive inverse test", ()=>{
+    //     expect(a.clone().add(b)).not.toEqual(a);
+    //     expect(a.clone().add(b).sub(b)).toEqual(a);
+    // });
+    testIdentity("add", "b", "sub", "b", "additive inverse");
+    testIdentity("mul", "b", "div", "b", "multiplicative inverse");
+    testIdentity("invert", "", "invert", "", "invert");
+    testIdentity("negate", "", "negate", "", "negate");
+    testIdentity("conjugate", "", "conjugate", "", "conjugate");
+    testIdentity("smul", "c", "smul", "c.invert()", "smul with inverse");
+
+    test("conjugate (component-wise test)", ()=>{
         expect(a.conjugate().mul(a).get(0).i).toBeCloseTo(0);
     });
+    test("dot product and norm", ()=>{
+        expect(a.dot(a).r).toBeCloseTo(a.norm()**2);
+    });
+    test("outer", ()=>{
+        overrideTolerance({
+            atol: 1e-5,
+            rtol: 1e-6,
+        });
+        const outer = a.outer(half);
+        expect(outer.rows).toBe(20);
+        expect(outer.columns).toBe(10);
+        expect(outer.get(0,0)).toEqual(a.get(0).mul(half.get(0)));
+        expect(outer.get(19,9)).toEqual(a.get(19).mul(half.get(9)));
+    });
+    test("project", ()=>{
+        overrideTolerance({
+            atol: 1e-5,
+            rtol: 1e-6,
+        });
+        expect(a.project(b).dot(b)).toEqual(a.dot(b));
+    });
+    test("tensor", ()=>{
+        overrideTolerance({
+            atol: 1e-5,
+            rtol: 1e-6,
+        });
+        const t = a.tensor(half);
+        expect(t.length).toBe(200);
+        expect(t.get(0)).toEqual(a.get(0).mul(half.get(0)));
+        expect(t.get(100)).toEqual(a.get(10).mul(half.get(0)));
+    });
 });
-// 
-// describe("Complex Vector", (expect)=>{
-//     const a = V(C(1,2), C(3,4));
-//     const b = V(C(5,6), C(7,8));
-//     test(".equal",()=>{
-//         expect(a.equal(b)).toBe(false);
-//         expect(a.equal(a)).toBe(true);
-//         expect(a.equal(V(C(1,2), C(3,4)))).toBe(true);
-//         expect(a.equal(V(C(1,2)))).toBe(false);
-//     });
-//     test(".add, .sub, .mul, .divi", ()=>{
-//         expect(a.add(b)).toEqual(V(C(6,8), C(10, 12)));
-//         expect(a.sub(b)).toEqual(V(C(-4,-4), C(-4, -4)));
-//         expect(a.mul(b)).toEqual(V(C(-7,16), C(-11, 52)));
-//         expect(a.mul(b).div(b)).toEqual(a);
-//     });
-//     test(".clone", ()=>{
-//         expect(a.clone()).toEqual(a);
-//         expect(a.clone()).not.toBe(a);
-//     });
-//     test(".set", ()=>{
-//         const cc = a.clone();
-//         expect(cc.set(0,C(-1,-2))).toEqual(V(C(-1,-2), C(3,4)));
-//     });
-//     test(".get", ()=>{
-//         expect(cc.get(1)).toEqual(C(3,4));
-//     });
-//     test(".copy", ()=>{
-//         cc.copy(a, 0)
-//         expect(cc).toEqual(a);
-//         expect(cc).not.toBe(a);
-//     });
-//     test(".addi, subi, .muli", ()=>{
-//         expect(a.clone().addi(b)).toEqual(V(C(6,8), C(10, 12)));
-//         expect(a.clone().subi(b)).toEqual(V(C(-4,-4), C(-4, -4)));
-//         expect(a.clone().muli(b)).toEqual(V(C(-7,16), C(-11, 52)));
-//         expect(a.clone().muli(b).divi(b)).toEqual(a);
-//     });
-//     test("Testing memory locality for immidiate operations", ()=>{
-//         expect(cc.addi(b)).toBe(cc);
-//         expect(cc.subi(b)).toBe(cc);
-//         expect(cc.muli(b)).toBe(cc);
-//         expect(cc.divi(b)).toBe(cc);
-//     });
-//     test(".dot", ()=>{
-//         const _d = b.conjugate();
-//         expect(a.dot(b)).toEqual(a.get(0).mul(_d.get(0)).add(a.get(1).mul(_d.get(1))));
-//         expect(a.dot(b)).toEqual(b.dot(a).conjugate());
-//     });
-//     test(".outer", ()=>{
-//         expect(a.outer(b)).toEqual(M(
-//             [a.get(0).mul(b.get(0)), a.get(0).mul(b.get(1))],
-//             [a.get(1).mul(b.get(0)), a.get(1).mul(b.get(1))],
-//         ));
-//         expect(randV(3).outer(randV(5))).toHaveProperties({
-//             rows: 3,
-//             columns: 5
-//         });
-//     });
-//     console.log(".project");
-//     // const isq2 = 1/Math.sqrt(2);
-//     // expect(a.project(V(C(1,0),C(0,0)))).toEqual(V(C(1,2),C(0,0)));
-//     // expect(a.project(V(C(0,0),C(-isq2,-isq2)))).toEqual(V(C(0,0),C(3,4)));
-//     // expect(V(C(1,0),C(1,0)).project(V(C(0,1),C(0,0)))).toEqual("");
-//     console.log(".smul");
-//     console.log(".smuli");
-//     console.log(".tensor");
-// });
-// 
-// describe("Complex random vectors", (expect)=>{
-//     const a = randV(20);
-//     const b = randV(20);
-//     console.log(".equal");
-//     expect(a.equal(b)).toBe(false);
-//     expect(a.equal(a)).toBe(true);
-//     expect(a.equal(a.clone())).toBe(true);
-//     console.log(".add, .sub, .mul, .divi")
-//     expect(a.add(b).sub(b)).toEqual(a);
-//     expect(a.mul(b).div(b)).toEqual(a);
-//     expect(a.mul(b)).notToEqual(a);
-//     console.log(".clone");
-//     expect(a.clone()).toEqual(a);
-//     expect(a.clone()).not.toBe(a);
-//     console.log(".set .get");
-//     const a1 = a.clone();
-//     const v1 = a1.get(1);
-//     a1.set(1,C(0,0));
-//     expect(a1).notToEqual(a);
-//     a1.set(1,v1);
-//     expect(a1).toEqual(a);
-//     console.log(".copy");
-//     const a2 = a.clone();
-//     a2.copy(b);
-//     expect(a2).toEqual(b);
-//     expect(a2).not.toBe(b);
-//     console.log(".addi, .subi, .muli");
-//     expect(a.clone().addi(b).subi(b)).toEqual(a);
-//     expect(a.clone().muli(b).divi(b)).toEqual(a);
-//     console.log("Testing memory locality for immidiate operations");
-//     const a3 = a.clone();
-//     expect(a3.addi(b)).toBe(a3);
-//     expect(a3.subi(b)).toBe(a3);
-//     expect(a3.muli(b)).toBe(a3);
-//     expect(a3.divi(b)).toBe(a3);
-//     console.log(".dot");
-//     expect(a.dot(a).i).toBe(0);
-//     expect(a.dot(b)).toEqual(b.dot(a).conjugate());
-//     console.log(".project, .smul");
-//     const proj = a.project(b);
-//     const scalar = proj.get(0).div(b.get(0));
-//     expect(proj).toEqual(b.smul(scalar));
-//     console.log("smul");
-//     
-//     
-// });
-// 
-// 
-// // 
-// // 

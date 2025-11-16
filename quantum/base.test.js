@@ -294,7 +294,7 @@ class Expect{
             this.success = true;
         }
     }
-    toBeCloseTo(value, atol = 1e-8, rtol = 1e-12){
+    toBeCloseTo(value, atol = this.scope.get("atol"), rtol = this.scope.get("rtol")){
         this.val2 = value;
         const not = this._not;
         const s1 = stableShortString(this.val1);
@@ -303,10 +303,14 @@ class Expect{
             const s1 = stableShortString(this.val1);
             throw new ExpectError(
                 `not.toBeCloseTo: Expected ${s1} to be far from ${s2}`,
+                `atol: ${atol}`,
+                `rtol: ${rtol}`,
             )
         }else if(!not && !equalWithTolerance(this.val1,this.val2, atol, rtol)){
             throw new ExpectError(
                 `toEqual: Expected ${s1} to be close to ${s2}`,
+                `atol: ${atol}`,
+                `rtol: ${rtol}`,
             );
         }else{
             this.success = true;
@@ -317,6 +321,9 @@ class Expect{
 // Export and scope initialization
 const globalScope = new Scope();
 globalScope.set("equal", objectEqual);
+// tolerance are for float 64
+globalScope.set("atol", 1e-8);
+globalScope.set("rtol", 1e-12);
 
 // context object for the immediate functions
 const context = {
@@ -328,9 +335,14 @@ const context = {
 
 export const overrideEqual = function(comp){
     context.scope.set("equal", (a, b)=>{
-        return comp(a, b, objectEqual);
+        return comp(a, b, objectEqual, context.scope.get("atol"), context.scope.get("rtol"));
     });
 };
+
+export const overrideTolerance = function({atol, rtol} = {}){
+    if(typeof atol === "number")context.scope.set("atol", atol);
+    if(typeof rtol === "number")context.scope.set("rtol", rtol);
+}
 
 export const expect = function(value){
     const expect = new Expect(value, context.test);

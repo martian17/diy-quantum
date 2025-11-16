@@ -296,6 +296,29 @@ export class ComplexVector{
         }
         return this;
     }
+    smul(c){
+        const res = this.constructor.create(this.length);
+        const r2 = c.r;
+        const i2 = c.i;
+        for(let i = 0; i < this.length; i++){
+            const r1 = this.buffer[i<<1|0];
+            const i1 = this.buffer[i<<1|1];
+            res.buffer[i<<1|0] = r1 * r2 - i1 * i2;
+            res.buffer[i<<1|1] = r1 * i2 + i1 * r2;
+        }
+        return res;
+    }
+    smuli(c){
+        const r2 = c.r;
+        const i2 = c.i;
+        for(let i = 0; i < this.length; i++){
+            const r1 = this.buffer[i<<1|0];
+            const i1 = this.buffer[i<<1|1];
+            this.buffer[i<<1|0] = r1 * r2 - i1 * i2;
+            this.buffer[i<<1|1] = r1 * i2 + i1 * r2;
+        }
+        return this;
+    }
     invert(){
         const res = this.constructor.create(this.length);
         for(let i = 0; i < this.length; i++){
@@ -306,28 +329,6 @@ export class ComplexVector{
             const d = r1*r1 + i1*i1;
             res.buffer[rr] = (r1)/d;
             res.buffer[ii] = (-i1)/d;
-        }
-        return res;
-    }
-    negate(){
-        const res = this.constructor.create(this.length);
-        for(let i = 0; i < this.length; i++){
-            const rr = i<<1|0;
-            const ii = i<<1|1;
-            res.buffer[rr] = -this.buffer[rr];
-            res.buffer[ii] = -this.buffer[rr];
-        }
-        return res;
-    }
-    conjugate(){
-        const res = this.constructor.create(this.length);
-        for(let i = 0; i < this.length; i++){
-            const rr = i<<1|0;
-            const ii = i<<1|1;
-            const r1 = this.buffer[rr];
-            const i1 = this.buffer[ii];
-            res.buffer[rr] = r1;
-            res.buffer[ii] = -i1;
         }
         return res;
     }
@@ -343,18 +344,40 @@ export class ComplexVector{
         }
         return this;
     }
+    negate(){
+        const res = this.constructor.create(this.length);
+        for(let i = 0; i < this.length; i++){
+            const rr = i<<1|0;
+            const ii = i<<1|1;
+            res.buffer[rr] = -this.buffer[rr];
+            res.buffer[ii] = -this.buffer[ii];
+        }
+        return res;
+    }
     negatei(){
         for(let i = 0; i < this.length; i++){
             const rr = i<<1|0;
             const ii = i<<1|1;
             this.buffer[rr] = -this.buffer[rr];
-            this.buffer[ii] = -this.buffer[rr];
+            this.buffer[ii] = -this.buffer[ii];
         }
         return this;
     }
+    conjugate(){
+        const res = this.constructor.create(this.length);
+        for(let i = 0; i < this.length; i++){
+            const rr = i<<1|0;
+            const ii = i<<1|1;
+            const r1 = this.buffer[rr];
+            const i1 = this.buffer[ii];
+            res.buffer[rr] = r1;
+            res.buffer[ii] = -i1;
+        }
+        return res;
+    }
     conjugatei(){
         for(let i = 0; i < this.length * 2; i += 2){
-            this.buffer[i] = -i;
+            this.buffer[i] = -this.buffer[i];
         }
         return this;
     }
@@ -373,6 +396,13 @@ export class ComplexVector{
             i_sum += r1 * i2 + i1 * r2;
         }
         return C(r_sum, i_sum);
+    }
+    norm(){
+        let lsum = 0;
+        for(let i = 0; i < this.length; i++){
+            lsum += this.buffer[i<<1|0]**2 + this.buffer[i<<1|1]**2;
+        }
+        return Math.sqrt(lsum);
     }
     outer(vec){
         const rows = this.length;
@@ -398,29 +428,6 @@ export class ComplexVector{
         return vec.smul(top.div(bot));
         //return vec.smul(C(top.div(bot).magnitude(),0));
     }
-    smul(c){
-        const res = this.constructor.create(this.length);
-        const r2 = c.r;
-        const i2 = c.i;
-        for(let i = 0; i < this.length; i++){
-            const r1 = this.buffer[i<<1|0];
-            const i1 = this.buffer[i<<1|1];
-            res.buffer[i<<1|0] = r1 * r2 - i1 * i2;
-            res.buffer[i<<1|1] = r1 * i2 + i1 * r2;
-        }
-        return res;
-    }
-    smuli(c){
-        const r2 = c.r;
-        const i2 = c.i;
-        for(let i = 0; i < this.length; i++){
-            const r1 = this.buffer[i<<1|0];
-            const i1 = this.buffer[i<<1|1];
-            this.buffer[i<<1|0] = r1 * r2 - i1 * i2;
-            this.buffer[i<<1|1] = r1 * i2 + i1 * r2;
-        }
-        return this;
-    }
     tensor(vec){
         const res = this.constructor.create(this.length * vec.length);
         for(let i = 0; i < this.length; i++){
@@ -428,8 +435,8 @@ export class ComplexVector{
                 const idx = i * vec.length + j;
                 const r1 = this.buffer[i<<1|0];
                 const i1 = this.buffer[i<<1|1];
-                const r2 = vec.buffer[i<<1|0];
-                const i2 = vec.buffer[i<<1|1];
+                const r2 = vec.buffer[j<<1|0];
+                const i2 = vec.buffer[j<<1|1];
                 res.buffer[idx<<1|0] = r1 * r2 - i1 * i2;
                 res.buffer[idx<<1|1] = r1 * i2 + i1 * r2;
             }
