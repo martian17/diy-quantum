@@ -355,19 +355,41 @@ export const test = function(name, cb){
     context.describe.tests.push(test);
 };
 
-let promiseLock = null;
+
+class Fifo{
+    queue = [];
+    push(val){
+        this.size++;
+        this.queue.push(val);
+    }
+    pop(){
+        if(this.queue.length === 0)return null;
+        this.size--;
+        const val = this.queue.shift();
+        return val;
+    }
+    size = 0;
+}
+
+let taskQueue = new Fifo();
+let runningTask = null;
+const serialSchedule = async function(cb){
+    taskQueue.push(cb);
+    if(runningTask === null){
+        while(taskQueue.size !== 0){
+            runningTask = taskQueue.pop()();
+            await runningTask;
+        }
+    }
+}
 
 export const describe = function(name, cb){
     const describe = new Describe(name, cb, globalScope);
     context.describe = describe;
     // in order to ensure the execution order
-    if(!promiseLock){
-        promiseLock = describe.execute();
-    }else{
-        promiseLock.finally(()=>{
-            promiseLock = describe.execute();
-        });
-    }
+    serialSchedule(()=>{
+        return describe.execute();
+    });
 };
 
 export const beforeEach = function(cb){
