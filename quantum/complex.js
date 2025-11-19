@@ -451,14 +451,21 @@ export class ComplexMatrix{
     static rtol = config.rtol_32;
     static create(rows, columns){
         if(!columns)columns = rows;
-        const matrix = new ComplexMatrix();
+        const matrix = new this();
         matrix.rows = rows;
         matrix.columns = columns;
         matrix.buffer = new this.BufferType(rows * columns * 2);
         return matrix;
     }
+    static identity(size){
+        const matrix = this.create(size);
+        for(let i = 0; i < size; i++){
+            matrix.buffer[(i*size + i)<<1] = 1;
+        }
+        return matrix;
+    }
     static fromArrays(arrays){
-        const matrix = new ComplexMatrix();
+        const matrix = new this();
         matrix.rows = arrays.length;
         matrix.columns = arrays[0].length;
         matrix.buffer = ComplexVector.fromValues(arrays.flat()).buffer;
@@ -486,7 +493,7 @@ export class ComplexMatrix{
         if(this.columns !== matrix.columns)return false;
         for(let i = 0; i < this.rows * this.columns * 2; i++){
             const a = this.buffer[i];
-            const b = vector.buffer[i];
+            const b = matrix.buffer[i];
             if(!equalWithTolerance(a, b, atol, rtol)){
                 return false;
             }
@@ -494,15 +501,16 @@ export class ComplexMatrix{
         return true;
     }
     clone(){
-        ComplexMatrix.create().copy(this);
+        return this.constructor.create(this.rows, this.columns).copy(this);
     }
     set(row, col, r, i){
         if(typeof i === "undefined"){
-
+            i = r.i;
+            r = r.r;
         }
         const index = row * this.columns + col;
-        this.buffer[index<<1|0] = c.r;
-        this.buffer[index<<1|1] = c.i;
+        this.buffer[index<<1|0] = r;
+        this.buffer[index<<1|1] = i;
         return this;
     }
     get(row, col){
@@ -514,44 +522,57 @@ export class ComplexMatrix{
     }
     copy(source, offset=0){
         this.buffer.set(source.buffer, offset << 1);
+        return this;
     }
     add(mat){
         const res = this.constructor.create(this.rows, this.columns);
         for(let i = 0; i < this.buffer.length; i++){
-            const rr = i<<1|0;
-            const ii = i<<1|1;
-            res.buffer[rr] = this.buffer[rr] + mat.buffer[rr];
-            res.buffer[ii] = this.buffer[ii] + mat.buffer[ii];
+            res.buffer[i] = this.buffer[i] + mat.buffer[i];
         }
         return res;
     }
     addi(mat){
         for(let i = 0; i < this.buffer.length; i++){
-            const rr = i<<1|0;
-            const ii = i<<1|1;
-            this.buffer[rr] += mat.buffer[rr];
-            this.buffer[ii] += mat.buffer[ii];
+            this.buffer[i] += mat.buffer[i];
         }
         return this;
     }
     sub(mat){
         const res = this.constructor.create(this.rows, this.columns);
         for(let i = 0; i < this.buffer.length; i++){
-            const rr = i<<1|0;
-            const ii = i<<1|1;
-            res.buffer[rr] = this.buffer[rr] - mat.buffer[rr];
-            res.buffer[ii] = this.buffer[ii] - mat.buffer[ii];
+            res.buffer[i] = this.buffer[i] - mat.buffer[i];
         }
         return res;
     }
     subi(mat){
         for(let i = 0; i < this.buffer.length; i++){
-            const rr = i<<1|0;
-            const ii = i<<1|1;
-            this.buffer[rr] -= mat.buffer[rr];
-            this.buffer[ii] -= mat.buffer[ii];
+            this.buffer[i] -= mat.buffer[i];
         }
         return this;
+    }
+    transpose(){
+        const res = this.constructor.create(this.columns, this.rows);
+        for(let i = 0; i < this.columns; i++){
+            for(let j = 0; j < this.rows; j++){
+                const idx1 = j*this.columns + i;
+                const idx2 = i*this.rows + j;
+                res.buffer[idx2<<1|0] = this.buffer[idx1<<1|0];
+                res.buffer[idx2<<1|1] = this.buffer[idx1<<1|1];
+            }
+        }
+        return res;
+    }
+    adjoint(){// conjugate transpose
+        const res = this.constructor.create(this.columns, this.rows);
+        for(let i = 0; i < this.columns; i++){
+            for(let j = 0; j < this.rows; j++){
+                const idx1 = j*this.columns + i;
+                const idx2 = i*this.rows + j;
+                res.buffer[idx2<<1|0] = this.buffer[idx1<<1|0];
+                res.buffer[idx2<<1|1] = -this.buffer[idx1<<1|1];
+            }
+        }
+        return res;
     }
     mul(mat){
         const res = this.constructor.create(this.rows, mat.columns);
@@ -564,8 +585,8 @@ export class ComplexMatrix{
                     const idx2 = k * mat.columns + j;
                     const r1 = this.buffer[idx1<<1|0];
                     const i1 = this.buffer[idx1<<1|1];
-                    const r2 = vec.buffer[idx2<<1|0];
-                    const i2 = vec.buffer[idx2<<1|1];
+                    const r2 = mat.buffer[idx2<<1|0];
+                    const i2 = mat.buffer[idx2<<1|1];
                     r_sum += r1 * r2 - i1 * i2;
                     i_sum += r1 * i2 + i1 * r2;
                 }
@@ -587,15 +608,135 @@ export class ComplexMatrix{
                     const idx2 = k * mat.columns + j;
                     const r1 = this.buffer[idx1<<1|0];
                     const i1 = this.buffer[idx1<<1|1];
-                    const r2 = vec.buffer[idx2<<1|0];
-                    const i2 = vec.buffer[idx2<<1|1];
-                    r_sum = r1 * r2 - i1 * i2;
-                    i_sum = r1 * i2 + i1 * r2;
+                    const r2 = mat.buffer[idx2<<1|0];
+                    const i2 = mat.buffer[idx2<<1|1];
+                    r_sum += r1 * r2 - i1 * i2;
+                    i_sum += r1 * i2 + i1 * r2;
                 }
                 row_temp.buffer[j<<1|0] = r_sum;
                 row_temp.buffer[j<<1|1] = i_sum;
             }
             this.copy(row_temp, i * mat.columns);
+        }
+        return this;
+    }
+    LUDecompose(){
+        // reference implementation:
+        // https://en.wikipedia.org/wiki/LU_decomposition#Doolittle_algorithm
+        // from C example LUPDecompose()
+        if(this.columns !== this.rows)throw new Error("Cannot decompose non-square matrix");
+        const size = this.rows;
+        const permutation = new Uint32Array(size);
+        for(let i = 0; i < size; i++){
+            permutation[i] = i;
+        }
+        for(let i = 0; i < size; i++){
+            // find the max
+            let max = 0;
+            let maxIndex = i;
+            for(let j = i; j < size; j++){
+                const idx = permutation[j] * size + i;
+                const real = this.buffer[idx<<1|0];
+                const imag = this.buffer[idx<<1|1];
+                const magSquare = real**2 + imag**2;
+                if(magSquare > max){
+                    max = magSquare;
+                    maxIndex = j;
+                }
+            }
+            if(maxIndex !== i){
+                // swap the rows and update the permutation vector
+                const tmp = permutation[i];
+                permutation[i] = permutation[maxIndex];
+                permutation[maxIndex] = tmp;
+            }
+            const permutedI = permutation[i];
+            const pivIdx = permutedI * size + i;
+            const pivR = this.buffer[pivIdx<<1|0];
+            const pivI = this.buffer[pivIdx<<1|1];
+            const pivD = pivR*pivR + pivI*pivI;
+            for(let j = i+1; j < size; j++){
+                const permutedJ = permutation[j];
+                const headIdx = permutedJ * size + i;
+                const headR = this.buffer[headIdx<<1|0];
+                const headI = this.buffer[headIdx<<1|1];
+                // divide head by pivot to get the factor
+                const factorR = (headR * pivR + headI * pivI)/pivD;
+                const factorI = (headI * pivR - headR * pivI)/pivD;
+                // store the factor where the value would be 0
+                this.buffer[headIdx<<1|0] = factorR;
+                this.buffer[headIdx<<1|1] = factorI;
+                for(let k = i+1; k < size; k++){
+                    const valueIdx = permutedJ * size + k;
+                    const refIdx = permutedI * size + k;
+                    const refR = this.buffer[refIdx<<1|0];
+                    const refI = this.buffer[refIdx<<1|1];
+                    this.buffer[valueIdx<<1|0] -= factorR * refR - factorI * refI;
+                    this.buffer[valueIdx<<1|1] -= factorR * refI + factorI * refR;
+                }
+            }
+        }
+        return permutation;
+    }
+    invertInPlace(){
+        const permutation = this.LUDecompose();
+        const size = this.rows;
+        // eliminate upper triangle
+        for(let i = size-1; i >= 1; i--){
+            for(let j = i-1; j >= 0; j--){
+                
+            }
+        }
+    }
+    invert(){
+        // from wikipedia
+        // don't know why it works, but it does
+
+        // side effect: turn A into LU
+        const lu = this.clone();
+        const permutation = lu.LUDecompose();
+        const size = this.rows;
+        const res = this.constructor.create(size, size);
+        for(let j = 0; j < size; j++){
+            for(let i = 0; i < size; i++){
+                const idx = i * size + j;
+                if(permutation[i] === j){
+                    // proxy diagonals to 1
+                    res.buffer[idx<<1|0] = 1;
+                }
+                for(let k = 0; k < i; k++){
+                    const luIdx = permutation[i] * size + k;
+                    const idx2 = k * size + j;
+                    const luR = lu.buffer[luIdx<<1|0];
+                    const luI = lu.buffer[luIdx<<1|1];
+                    const invR = res.buffer[idx2<<1|0];
+                    const invI = res.buffer[idx2<<1|1];
+                    res.buffer[idx<<1|0] -= luR * invR - luI * invI;
+                    res.buffer[idx<<1|1] -= luR * invI + luI * invR;
+                }
+            }
+            for(let i = size - 1; i >= 0; i--){
+                const idx = i * size + j;
+                for(let k = i + 1; k < size; k++){
+                    const luIdx = permutation[i] * size + k;
+                    const idx2 = k * size + j;
+                    const luR = lu.buffer[luIdx<<1|0];
+                    const luI = lu.buffer[luIdx<<1|1];
+                    const invR = res.buffer[idx2<<1|0];
+                    const invI = res.buffer[idx2<<1|1];
+                    res.buffer[idx<<1|0] -= luR * invR - luI * invI;
+                    res.buffer[idx<<1|1] -= luR * invI + luI * invR;
+                }
+                const ludIdx = permutation[i] * size + i;
+                const ludR = lu.buffer[ludIdx<<1|0];
+                const ludI = lu.buffer[ludIdx<<1|1];
+                const invR = res.buffer[idx<<1|0];
+                const invI = res.buffer[idx<<1|1];
+                // divide the value by lu diagonal
+                const d = ludR**2 + ludI**2;
+                res.buffer[idx<<1|0] = (invR * ludR + invI * ludI)/d;
+                res.buffer[idx<<1|1] = (invI * ludR - invR * ludI)/d;
+            }
         }
         return res;
     }

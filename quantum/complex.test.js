@@ -127,7 +127,7 @@ describe("ComplexVector", ()=>{
         rtol: 1e-8,
     });
     
-    test("equal and calone", ()=>{
+    test("equal and clone", ()=>{
         expect(a.equal(b)).toBe(false);
         expect(a.equal(a)).toBe(true);
         expect(a.clone()).not.toBe(a);
@@ -194,4 +194,138 @@ describe("ComplexVector", ()=>{
         expect(t.get(0)).toEqual(a.get(0).mul(half.get(0)));
         expect(t.get(100)).toEqual(a.get(10).mul(half.get(0)));
     });
+});
+
+describe("ComplexMatrix", ()=>{
+    const size1 = 20;
+    const size2 = 15;
+    let a;
+    let b;
+    let c;
+    let d;
+    let I;
+    beforeEach(()=>{
+        a = randM(size1,size2);
+        b = randM(size1,size2);
+        c = randM(size1,size1);
+        d = randM(size1,size1);
+        I = ComplexMatrix.identity(size1);
+    });
+
+    overrideTolerance({
+        atol: 1e-5,
+        rtol: 1e-8,
+    });
+
+    test("create and toString", ()=>{
+        const m = ComplexMatrix.create(3,2);
+        expect(m.toString()).toBe(
+            "|0 0|\n"+
+            "|0 0|\n"+
+            "|0 0|"
+        );
+    });
+    test("fromArrays and toString", ()=>{
+        const m = ComplexMatrix.fromArrays([
+            [1,2,3],
+            [4,[0,-5],[6,7]]
+        ]);
+        expect(m.toString()).toBe(
+            "|1   2    3|\n"+
+            "|4 -5i 6+7i|"
+        );
+    });
+    test("equal and clone", ()=>{
+        expect(a.clone()).not.toBe(a);
+        expect(a.clone()).toEqual(a);
+        expect(a.clone()).not.toEqual(b);
+    })
+    test("set and get", ()=>{
+        a.set(0,0,C(4,2));
+        expect(a.get(0,0)).toEqual(C(4,2));
+        expect(a.get(3,7)).not.toEqual(b.get(5,6));
+        a.set(3,7,b.get(5,6));
+        expect(a.get(3,7)).toEqual(b.get(5,6));
+    });
+    test("copy", ()=>{
+        expect(a).not.toEqual(b);
+        a.copy(b);
+        expect(a).toEqual(b);
+        expect(a).not.toBe(b);
+    });
+    const testIdentity = function(target, op1, arg1, op2, arg2, testName){
+        test(testName, eval(`()=>{
+            expect(${target}.${op1}(${arg1})).not.toEqual(${target});
+            expect(${target}.${op1}(${arg1}).${op2}(${arg2})).toEqual(${target});
+        }`));
+    };
+    // example of an identity test
+    testIdentity("a", "add", "b", "sub", "b", "additive inverse");
+    test("additive inverse (immediate)", ()=>{
+        expect(a.clone().addi(b)).not.toEqual(a);
+        expect(a.clone().addi(b).subi(b)).toEqual(a);
+        expect(a.addi(b)).toBe(a);
+    });
+    test("identity matrix mul and muli", ()=>{
+        expect(c.mul(I)).toEqual(c);
+        expect(c.clone().muli(I)).toEqual(c);
+        expect(c.mul(I)).not.toBe(c);
+    });
+    test("transpose", ()=>{
+        expect(a.transpose()).not.toEqual(a);
+        expect(a.transpose().rows).toEqual(a.columns);
+        expect(a.transpose().transpose()).toEqual(a);
+    });
+    test("adjoint (conjugate transpose)", ()=>{
+        expect(a.adjoint()).not.toEqual(a);
+        expect(a.adjoint()).not.toEqual(a.transpose());
+        expect(a.adjoint().rows).toEqual(a.columns);
+        expect(a.adjoint().adjoint()).toEqual(a);
+    });
+    test("LU decomposition", ()=>{
+        const m = ComplexMatrix.fromArrays([
+            [-2, 2, -1],
+            [6, -6, 7],
+            [3, -8, 4]
+        ]);
+        const p = m.LUDecompose();
+        expect(m).toEqual(ComplexMatrix.fromArrays([
+            [ -1/3,  0, 4/3],
+            [    6, -6,   7],
+            [  0.5, -5, 0.5],
+        ]));
+        expect(p).toEqual(new Uint32Array([ 1, 2, 0 ]));
+    });
+    test("invert", ()=>{
+        overrideTolerance({
+            atol: 1e-3,
+            rtol: 1e-3,
+        });
+        expect(c.invert()).not.toEqual(c);
+        expect(c.invert().invert()).toEqual(c);
+        expect(c.mul(c.invert())).toEqual(ComplexMatrix.identity(c.rows))
+    });
+    // test("inversion", ()=>{
+    //     const m = ComplexMatrix.fromArrays([
+    //         [-2, 2, -1],
+    //         [6, -6, 7],
+    //         [3, -8, 4]
+    //     ]);
+    //     const inv = m.clone().invert();
+    //     console.log(inv.toString());
+    //     console.log(m.mul(inv).toString());
+    //     console.log(c.mul(c.invert()).toString());
+    //     console.log(c.toString());
+    //     console.log(c.invert().toString());
+    // });
+    //testIdentity("c", "mul", "I", "mul", "I", "identity matrix multiplication");
+
+    // testIdentity("mul", "b", "div", "b", "multiplicative inverse");
+    // testIdentity("invert", "", "invert", "", "invert");
+    // testIdentity("negate", "", "negate", "", "negate");
+    // testIdentity("conjugate", "", "conjugate", "", "conjugate");
+    // testIdentity("smul", "c", "smul", "c.invert()", "smul with inverse");
+
+    //test("");
+
 });
