@@ -678,67 +678,74 @@ export class ComplexMatrix{
         }
         return permutation;
     }
-    invertInPlace(){
-        const permutation = this.LUDecompose();
-        const size = this.rows;
-        // eliminate upper triangle
-        for(let i = size-1; i >= 1; i--){
-            for(let j = i-1; j >= 0; j--){
-                
-            }
-        }
-    }
     invert(){
-        // from wikipedia
-        // don't know why it works, but it does
-
-        // side effect: turn A into LU
-        const lu = this.clone();
-        const permutation = lu.LUDecompose();
+        return this.clone().inverti();
+    }
+    inverti(){
+        // DasGupta, D. (2013) In-Place Matrix Inversion by Modified Gauss-Jordan Algorithm. Applied Mathematics, 4, 1392-1396. doi: 10.4236/am.2013.410188.
+        if(this.columns !== this.rows)throw new Error("Cannot invert non-square matrix");
         const size = this.rows;
-        const res = this.constructor.create(size, size);
-        for(let j = 0; j < size; j++){
-            for(let i = 0; i < size; i++){
-                const idx = i * size + j;
-                if(permutation[i] === j){
-                    // proxy diagonals to 1
-                    res.buffer[idx<<1|0] = 1;
-                }
-                for(let k = 0; k < i; k++){
-                    const luIdx = permutation[i] * size + k;
-                    const idx2 = k * size + j;
-                    const luR = lu.buffer[luIdx<<1|0];
-                    const luI = lu.buffer[luIdx<<1|1];
-                    const invR = res.buffer[idx2<<1|0];
-                    const invI = res.buffer[idx2<<1|1];
-                    res.buffer[idx<<1|0] -= luR * invR - luI * invI;
-                    res.buffer[idx<<1|1] -= luR * invI + luI * invR;
+        const inverted = new Uint8Array(size);
+        for(let _i = 0; _i < size; _i++){
+            // find the max
+            let max = 0;
+            let maxIndex = 0;
+            for(let j = 0; j < size; j++){
+                if(inverted[j])continue;
+                const idx = j * size + j;
+                const real = this.buffer[idx<<1|0];
+                const imag = this.buffer[idx<<1|1];
+                const magSquare = real**2 + imag**2;
+                if(magSquare > max){
+                    max = magSquare;
+                    maxIndex = j;
                 }
             }
-            for(let i = size - 1; i >= 0; i--){
-                const idx = i * size + j;
-                for(let k = i + 1; k < size; k++){
-                    const luIdx = permutation[i] * size + k;
-                    const idx2 = k * size + j;
-                    const luR = lu.buffer[luIdx<<1|0];
-                    const luI = lu.buffer[luIdx<<1|1];
-                    const invR = res.buffer[idx2<<1|0];
-                    const invI = res.buffer[idx2<<1|1];
-                    res.buffer[idx<<1|0] -= luR * invR - luI * invI;
-                    res.buffer[idx<<1|1] -= luR * invI + luI * invR;
+            // pivot row
+            const pivot = maxIndex;
+            inverted[pivot] = 1;
+            const pivIdx = pivot * size + pivot;
+            const pivR = this.buffer[pivIdx<<1|0];
+            const pivI = this.buffer[pivIdx<<1|1];
+            const pivM2 = pivR**2 + pivI**2;
+            const pivinvR = pivR/pivM2;
+            const pivinvI = -pivI/pivM2;
+            // invert and do other stuff DasGupta1 et al.
+            for(let j = 0; j < size; j++){
+                const idx = pivot*size + j;
+                if(j === pivot){
+                    this.buffer[idx<<1|0] = pivinvR;
+                    this.buffer[idx<<1|1] = pivinvI;
+                }else{
+                    const real = this.buffer[idx<<1|0];
+                    const imag = this.buffer[idx<<1|1];
+                    this.buffer[idx<<1|0] = real * pivinvR - imag * pivinvI;
+                    this.buffer[idx<<1|1] = real * pivinvI + imag * pivinvR;
                 }
-                const ludIdx = permutation[i] * size + i;
-                const ludR = lu.buffer[ludIdx<<1|0];
-                const ludI = lu.buffer[ludIdx<<1|1];
-                const invR = res.buffer[idx<<1|0];
-                const invI = res.buffer[idx<<1|1];
-                // divide the value by lu diagonal
-                const d = ludR**2 + ludI**2;
-                res.buffer[idx<<1|0] = (invR * ludR + invI * ludI)/d;
-                res.buffer[idx<<1|1] = (invI * ludR - invR * ludI)/d;
+            }
+
+            for(let i = 0; i < size; i++){
+                if(i === pivot)continue;
+                // non pivotal row
+                const rowPivIdx = i * size + pivot;
+                const rowPivR = this.buffer[rowPivIdx<<1|0];
+                const rowPivI = this.buffer[rowPivIdx<<1|1];
+                for(let j = 0; j < size; j++){
+                    const idx = i*size + j;
+                    if(j === pivot){
+                        this.buffer[idx<<1|0] = -(rowPivR * pivinvR - rowPivI * pivinvI);
+                        this.buffer[idx<<1|1] = -(rowPivR * pivinvI + rowPivI * pivinvR);
+                        continue;
+                    }
+                    const refIdx = pivot * size + j;
+                    const refR = this.buffer[refIdx<<1|0];
+                    const refI = this.buffer[refIdx<<1|1];
+                    this.buffer[idx<<1|0] -= rowPivR * refR - rowPivI * refI;
+                    this.buffer[idx<<1|1] -= rowPivR * refI + rowPivI * refR;
+                }
             }
         }
-        return res;
+        return this;
     }
     tensor(mat){// tensor product
         const rows = this.rows * mat.rows;
@@ -764,19 +771,6 @@ export class ComplexMatrix{
             }
         }
     }
-    // wip
-    // divl(){
-
-    // }
-    // divli(){
-
-    // }
-    // divr(){
-
-    // }
-    // divri(){
-
-    // }
 }
 
 ComplexVector.MatrixClass = ComplexMatrix;

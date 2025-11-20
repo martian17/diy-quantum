@@ -298,34 +298,31 @@ describe("ComplexMatrix", ()=>{
     });
     test("invert", ()=>{
         overrideTolerance({
-            atol: 1e-3,
-            rtol: 1e-3,
+            atol: 1e-4,
+            rtol: 1e-4,
         });
         expect(c.invert()).not.toEqual(c);
         expect(c.invert().invert()).toEqual(c);
         expect(c.mul(c.invert())).toEqual(ComplexMatrix.identity(c.rows))
     });
-    // test("inversion", ()=>{
-    //     const m = ComplexMatrix.fromArrays([
-    //         [-2, 2, -1],
-    //         [6, -6, 7],
-    //         [3, -8, 4]
-    //     ]);
-    //     const inv = m.clone().invert();
-    //     console.log(inv.toString());
-    //     console.log(m.mul(inv).toString());
-    //     console.log(c.mul(c.invert()).toString());
-    //     console.log(c.toString());
-    //     console.log(c.invert().toString());
-    // });
-    //testIdentity("c", "mul", "I", "mul", "I", "identity matrix multiplication");
-
-    // testIdentity("mul", "b", "div", "b", "multiplicative inverse");
-    // testIdentity("invert", "", "invert", "", "invert");
-    // testIdentity("negate", "", "negate", "", "negate");
-    // testIdentity("conjugate", "", "conjugate", "", "conjugate");
-    // testIdentity("smul", "c", "smul", "c.invert()", "smul with inverse");
-
-    //test("");
-
+    test("in-place invert", ()=>{
+        overrideTolerance({
+            atol: 1e-4,
+            rtol: 1e-4,
+        });
+        const m = ComplexMatrix.fromArrays([
+            [-1, -1,  3],
+            [ 2,  1,  2],
+            [-2, -2,  1],
+        ]);
+        expect(m.inverti()).toEqual(
+            ComplexMatrix.fromArrays([
+            [ -1,  1,    1],
+            [1.2, -1, -1.6],
+            [0.4,  0, -0.2],
+        ]));
+        expect(c.clone().inverti()).not.toEqual(c);
+        expect(c.clone().inverti().inverti()).toEqual(c);
+        expect(c.mul(c.clone().invert())).toEqual(ComplexMatrix.identity(c.rows))
+    });
 });
