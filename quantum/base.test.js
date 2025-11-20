@@ -12,7 +12,7 @@ const riffle = function(a,b,cb){
 
 const objectEqual = function(o1, o2){
     if(typeof o1 !== typeof o2)return false;
-    if(o1.isNaN && o2.isNaN)return true;
+    if(typeof o1 === "number" && isNaN(o1) && isNaN(o2))return true;
     if(typeof o1 !== "object"){
         return o1 === o2;
     }
@@ -35,6 +35,7 @@ const objectEqual = function(o1, o2){
         if(!(key in o1))return false;
         if(!objectEqual(o1[key], o2[key]))return false;
     }
+    return true;
 };
 
 const stableToString = function(value){
