@@ -239,13 +239,19 @@ describe("ComplexMatrix", ()=>{
         expect(a.clone()).not.toBe(a);
         expect(a.clone()).toEqual(a);
         expect(a.clone()).not.toEqual(b);
-    })
+    });
     test("set and get", ()=>{
         a.set(0,0,C(4,2));
         expect(a.get(0,0)).toEqual(C(4,2));
         expect(a.get(3,7)).not.toEqual(b.get(5,6));
         a.set(3,7,b.get(5,6));
         expect(a.get(3,7)).toEqual(b.get(5,6));
+    });
+    test("getRowReference", ()=>{
+        const row = a.getRowReference(5);
+        expect(row.get(3)).toEqual(a.get(5, 3));
+        row.set(4, C(42,-24));
+        expect(a.get(5,4)).toEqual(C(42,-24));
     });
     test("copy", ()=>{
         expect(a).not.toEqual(b);
@@ -325,4 +331,13 @@ describe("ComplexMatrix", ()=>{
         expect(c.clone().inverti().inverti()).toEqual(c);
         expect(c.mul(c.clone().invert())).toEqual(ComplexMatrix.identity(c.rows))
     });
+    // test("Eigenvector", ()=>{
+    //     // const mat = ComplexMatrix.fromArrays([
+    //     //     [ -1,  1,    1],
+    //     //     [1.2, -1, -1.6],
+    //     //     [0.4,  0, -0.2],
+    //     // ]);
+    //     const mat = randM(3, 3);
+    //     mat.eigenVector();
+    // });
 });

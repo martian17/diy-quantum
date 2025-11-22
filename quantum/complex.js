@@ -61,6 +61,13 @@ export class Complex{
             i-c.i,
         );
     }
+    normalize(){
+        const {r,i} = this;
+        const n = Math.sqrt(r*r+i*i);
+        return new Complex(
+            r/n,i/n
+        );
+    }
     invert(){
         const {r,i} = this;
         const m = this.modulusSquare();
@@ -398,11 +405,34 @@ export class ComplexVector{
         return C(r_sum, i_sum);
     }
     norm(){
+        return Math.sqrt(this.normSquare());
+    }
+    normSquare(){
         let lsum = 0;
         for(let i = 0; i < this.length; i++){
             lsum += this.buffer[i<<1|0]**2 + this.buffer[i<<1|1]**2;
         }
-        return Math.sqrt(lsum);
+        return lsum;
+    }
+    normalize(){
+        const norm = this.norm();
+        for(let i = 0; i < this.length * 2; i++){
+            this.buffer[i] /= norm;
+        }
+        return this;
+    }
+    complexNormalize(){
+        const norm = this.norm();
+        const r0 = this.buffer[0];
+        const i0 = this.buffer[1];
+        const c = C(r0,i0).normalize().conjugate();
+        for(let i = 0; i < this.length; i++){
+            const real = this.buffer[i<<1|0];
+            const imag = this.buffer[i<<1|1];
+            this.buffer[i<<1|0] = (real * c.r - imag * c.i)/norm;
+            this.buffer[i<<1|1] = (real * c.i + imag * c.r)/norm;
+        }
+        return this;
     }
     outer(vec){
         const rows = this.length;
@@ -520,6 +550,13 @@ export class ComplexMatrix{
             this.buffer[index<<1|1],
         );
     }
+    getRowReference(i){
+        // return vector class
+        const vector = new this.constructor.VectorClass();
+        vector.length = this.columns;
+        vector.buffer = this.buffer.subarray(i * 2 * this.columns, (i+1) * 2 * this.columns);
+        return vector;
+    }
     copy(source, offset=0){
         this.buffer.set(source.buffer, offset << 1);
         return this;
@@ -599,7 +636,7 @@ export class ComplexMatrix{
     }
     muli(mat){
         for(let i = 0; i < this.rows; i++){
-            const row_temp = this.constructor.VectorClass.create(this.rows, mat.columns);
+            const row_temp = this.constructor.VectorClass.create(this.rows);
             for(let j = 0; j < mat.columns; j++){
                 let r_sum = 0;
                 let i_sum = 0;
@@ -619,6 +656,25 @@ export class ComplexMatrix{
             this.copy(row_temp, i * mat.columns);
         }
         return this;
+    }
+    mulVec(vec){
+        const res = this.constructor.VectorClass.create(this.columns);
+        for(let i = 0; i < this.rows; i++){
+            let real = 0;
+            let imag = 0;
+            for(let j = 0; j < this.columns; j++){
+                const matIdx = i*this.columns + j;
+                const matR = this.buffer[matIdx<<1|0];
+                const matI = this.buffer[matIdx<<1|1];
+                const vecR = vec.buffer[j<<1|0];
+                const vecI = vec.buffer[j<<1|1];
+                real += matR * vecR - matI * vecI;
+                imag += matR * vecI + matI * vecR;
+            }
+            res.buffer[i<<1|0] = real;
+            res.buffer[i<<1|1] = imag;
+        }
+        return res;
     }
     LUDecompose(){
         // reference implementation:
@@ -769,6 +825,20 @@ export class ComplexMatrix{
                     }
                 }
             }
+        }
+    }
+    eigenVector(){
+        if(this.columns !== this.rows)throw new Error("Cannot calculate eigenvalue for non-square matrix");
+        const size = this.rows;
+        const mat = this.clone();
+        let vec = this.constructor.VectorClass.create(size);
+        for(let i = 0; i < size; i++){
+            vec.buffer[i<<1] = 1;
+        }
+        vec.complexNormalize()
+        for(let i = 0; i < 100; i++){
+            vec = mat.mulVec(vec).complexNormalize();
+            console.log(vec);
         }
     }
 }
